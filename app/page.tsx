@@ -2,6 +2,9 @@ export default function Home() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6 py-16">
       <section className="w-full max-w-3xl text-center">
+        <p className="mb-5 text-sm font-semibold uppercase tracking-[0.18em] text-blue-700 sm:text-base">
+          ¡Bienvenido/a!
+        </p>
         <h1 className="text-balance text-5xl font-semibold tracking-[-0.04em] sm:text-7xl">
           Código Abierto 2026
         </h1>
