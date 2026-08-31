@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Código Abierto 2026 | Door List",
-  description: "Registro para Código Abierto 2026 en La Paz.",
+  title: "Registro de eventos | Door List",
+  description: "Registro público y administración de eventos.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
