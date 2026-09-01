@@ -34,6 +34,7 @@ type RegistrationResult = {
   status: RegistrationStatus;
   registration_id: string | null;
   ticket_code: string | null;
+  email_sent?: boolean;
 };
 
 type Confirmation = {
@@ -42,6 +43,7 @@ type Confirmation = {
   name: string;
   email: string;
   ticketCode: string;
+  emailSent: boolean;
 };
 
 function formatEventDate(value: string) {
@@ -133,20 +135,24 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
     setSubmitting(true);
     setNotice("");
 
-    const { data: response, error } = await supabase.rpc("register_for_event", {
-      p_event_id: data.event.id,
-      p_ticket_type_id: ticket.id,
-      p_name: trimmedName,
-      p_email: normalizedEmail,
-    });
-
-    if (error) {
+    let result: RegistrationResult | null = null;
+    try {
+      const response = await fetch("/api/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: data.event.id,
+          ticketTypeId: ticket.id,
+          name: trimmedName,
+          email: normalizedEmail,
+        }),
+      });
+      result = (await response.json()) as RegistrationResult;
+    } catch {
       setNotice("No pudimos completar tu registro. Intenta nuevamente.");
       setSubmitting(false);
       return;
     }
-
-    const result = (response as RegistrationResult[] | null)?.[0];
 
     if (result?.status === "success" && result.ticket_code) {
       setConfirmation({
@@ -155,6 +161,7 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
         name: trimmedName,
         email: normalizedEmail,
         ticketCode: result.ticket_code,
+        emailSent: result.email_sent === true,
       });
       setSubmitting(false);
       return;
@@ -215,6 +222,11 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
         <div className="success-mark" aria-hidden="true">✓</div>
         <h1>¡Registro confirmado!</h1>
         <p>Tu lugar para <strong>{confirmation.eventTitle}</strong> está reservado.</p>
+        <p className={`public-alert ${confirmation.emailSent ? "success" : "error"}`} role="status">
+          {confirmation.emailSent
+            ? `Enviamos la entrada con el QR a ${confirmation.email}.`
+            : "Tu entrada fue creada, pero no pudimos enviarla por email. Puedes abrirla desde el enlace de abajo."}
+        </p>
         <dl className="confirmation-details">
           <div><dt>Entrada</dt><dd>{confirmation.ticketName}</dd></div>
           <div><dt>Nombre</dt><dd>{confirmation.name}</dd></div>
