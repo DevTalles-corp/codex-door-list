@@ -33,6 +33,7 @@ type RegistrationStatus =
 type RegistrationResult = {
   status: RegistrationStatus;
   registration_id: string | null;
+  ticket_code: string | null;
 };
 
 type Confirmation = {
@@ -40,6 +41,7 @@ type Confirmation = {
   ticketName: string;
   name: string;
   email: string;
+  ticketCode: string;
 };
 
 function formatEventDate(value: string) {
@@ -146,12 +148,13 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
 
     const result = (response as RegistrationResult[] | null)?.[0];
 
-    if (result?.status === "success") {
+    if (result?.status === "success" && result.ticket_code) {
       setConfirmation({
         eventTitle: data.event.title,
         ticketName: ticket.name,
         name: trimmedName,
         email: normalizedEmail,
+        ticketCode: result.ticket_code,
       });
       setSubmitting(false);
       return;
@@ -217,6 +220,9 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
           <div><dt>Nombre</dt><dd>{confirmation.name}</dd></div>
           <div><dt>Email</dt><dd>{confirmation.email}</dd></div>
         </dl>
+        <a className="ticket-link" href={`/entradas/${confirmation.ticketCode}`}>
+          Ver mi entrada y código QR
+        </a>
       </main>
     );
   }
