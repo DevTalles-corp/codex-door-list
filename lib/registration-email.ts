@@ -1,21 +1,7 @@
 import QRCode from "qrcode";
 import { Resend } from "resend";
-
-type RegistrationTicket = {
-  code: string;
-  attendee: {
-    name: string;
-    email: string;
-  };
-  event: {
-    title: string;
-    event_date: string;
-    venue: string;
-  };
-  ticket_type: {
-    name: string;
-  };
-};
+import { formatEventDate } from "@/lib/dates";
+import type { RegistrationTicket } from "@/lib/types";
 
 function escapeHtml(value: string) {
   return value
@@ -24,14 +10,6 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function formatEventDate(value: string) {
-  return new Intl.DateTimeFormat("es-BO", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: "America/La_Paz",
-  }).format(new Date(value));
 }
 
 export async function sendRegistrationEmail({

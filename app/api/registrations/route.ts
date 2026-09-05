@@ -1,28 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { sendRegistrationEmail } from "@/app/lib/registration-email";
+import { sendRegistrationEmail } from "@/lib/registration-email";
+import type { RegistrationRequest, RegistrationResult, RegistrationTicket } from "@/lib/types";
 
 export const runtime = "nodejs";
-
-type RegistrationRequest = {
-  eventId?: unknown;
-  ticketTypeId?: unknown;
-  name?: unknown;
-  email?: unknown;
-};
-
-type RegistrationResult = {
-  status: string;
-  registration_id: string | null;
-  ticket_code: string | null;
-};
-
-type RegistrationTicket = {
-  code: string;
-  attendee: { name: string; email: string };
-  event: { title: string; event_date: string; venue: string };
-  ticket_type: { name: string };
-};
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

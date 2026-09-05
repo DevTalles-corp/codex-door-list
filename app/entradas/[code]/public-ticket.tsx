@@ -2,27 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { supabase } from "../../lib/supabase";
-
-type TicketStatus = "valid" | "used" | "revoked";
-
-type TicketData = {
-  code: string;
-  status: TicketStatus;
-  issued_at: string;
-  attendee: {
-    name: string;
-    email: string;
-  };
-  event: {
-    title: string;
-    event_date: string;
-    venue: string;
-  };
-  ticket_type: {
-    name: string;
-  };
-};
+import { formatEventDate } from "@/lib/dates";
+import { supabase } from "@/lib/supabase/client";
+import type { Ticket, TicketStatus } from "@/lib/types";
 
 const statusLabels: Record<TicketStatus, string> = {
   valid: "Válida",
@@ -30,16 +12,8 @@ const statusLabels: Record<TicketStatus, string> = {
   revoked: "Revocada",
 };
 
-function formatEventDate(value: string) {
-  return new Intl.DateTimeFormat("es-BO", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: "America/La_Paz",
-  }).format(new Date(value));
-}
-
 export default function PublicTicket({ code }: { code: string }) {
-  const [ticket, setTicket] = useState<TicketData | null>(null);
+  const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -77,7 +51,7 @@ export default function PublicTicket({ code }: { code: string }) {
       return;
     }
 
-    setTicket(data as TicketData);
+    setTicket(data as Ticket);
     setLoading(false);
   }, [code]);
 

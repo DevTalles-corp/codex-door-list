@@ -2,35 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "./lib/supabase";
-
-type PublicEvent = {
-  id: string;
-  title: string;
-  description: string | null;
-  event_date: string;
-  venue: string;
-  status: "draft" | "published";
-};
-
-const laPazDate = (value: string | Date) => new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/La_Paz",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-}).format(new Date(value));
-
-const registrationIsOpen = (event: PublicEvent) => event.status === "published"
-  && laPazDate(event.event_date) >= laPazDate(new Date());
-
-const formatEventDate = (value: string) => new Intl.DateTimeFormat("es-BO", {
-  dateStyle: "full",
-  timeStyle: "short",
-  timeZone: "America/La_Paz",
-}).format(new Date(value));
+import { formatEventDate, registrationIsOpen } from "@/lib/dates";
+import { supabase } from "@/lib/supabase/client";
+import type { EventListing } from "@/lib/types";
 
 export default function Home() {
-  const [events, setEvents] = useState<PublicEvent[]>([]);
+  const [events, setEvents] = useState<EventListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -56,7 +33,7 @@ export default function Home() {
       return;
     }
 
-    setEvents((data as PublicEvent[]).filter(registrationIsOpen));
+    setEvents((data as EventListing[]).filter(registrationIsOpen));
     setLoading(false);
   }, []);
 

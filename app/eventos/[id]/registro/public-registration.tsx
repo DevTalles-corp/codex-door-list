@@ -1,41 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "../../../lib/supabase";
-
-type PublicEvent = {
-  id: string;
-  title: string;
-  description: string | null;
-  event_date: string;
-  venue: string;
-};
-
-type TicketType = {
-  id: string;
-  name: string;
-  max_capacity: number;
-  remaining_capacity: number;
-};
-
-type RegistrationData = {
-  event: PublicEvent;
-  ticket_types: TicketType[];
-};
-
-type RegistrationStatus =
-  | "success"
-  | "event_unavailable"
-  | "ticket_unavailable"
-  | "duplicate_registration"
-  | "invalid_input";
-
-type RegistrationResult = {
-  status: RegistrationStatus;
-  registration_id: string | null;
-  ticket_code: string | null;
-  email_sent?: boolean;
-};
+import { formatEventDate } from "@/lib/dates";
+import { supabase } from "@/lib/supabase/client";
+import type { RegistrationData, RegistrationResult } from "@/lib/types";
 
 type Confirmation = {
   eventTitle: string;
@@ -45,14 +13,6 @@ type Confirmation = {
   ticketCode: string;
   emailSent: boolean;
 };
-
-function formatEventDate(value: string) {
-  return new Intl.DateTimeFormat("es-BO", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: "America/La_Paz",
-  }).format(new Date(value));
-}
 
 function unavailableMessage() {
   return "Este evento no está disponible para registro.";
