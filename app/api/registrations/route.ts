@@ -1,14 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { sendRegistrationEmail } from "@/lib/registration-email";
-import type { RegistrationRequest, RegistrationResult, RegistrationTicket } from "@/lib/types";
+import type {
+  RegistrationErrorCode,
+  RegistrationErrorResponse,
+  RegistrationRequest,
+  RegistrationRpcResult,
+  RegistrationSuccessResponse,
+  RegistrationTicket,
+} from "@/lib/types";
 
 export const runtime = "nodejs";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function errorResponse(error: RegistrationErrorCode, status: 400 | 404 | 409 | 500 | 503) {
+  const body: RegistrationErrorResponse = { error };
+  return NextResponse.json(body, { status });
+}
+
 function invalidRequest() {
-  return NextResponse.json({ status: "invalid_input" }, { status: 400 });
+  return errorResponse("invalid_input", 400);
 }
 
 export async function POST(request: Request) {
@@ -44,7 +56,7 @@ export async function POST(request: Request) {
 
   if (!supabaseUrl || !supabaseKey) {
     console.error("Registration API is missing Supabase configuration");
-    return NextResponse.json({ status: "server_error" }, { status: 503 });
+    return errorResponse("service_unavailable", 503);
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -59,12 +71,25 @@ export async function POST(request: Request) {
 
   if (error) {
     console.error("Registration RPC failed", error.message);
-    return NextResponse.json({ status: "server_error" }, { status: 500 });
+    return errorResponse("server_error", 500);
   }
 
-  const result = (data as RegistrationResult[] | null)?.[0];
+  const result = (data as RegistrationRpcResult[] | null)?.[0];
+  if (result?.status === "invalid_input") {
+    return errorResponse("invalid_input", 400);
+  }
+  if (result?.status === "event_unavailable") {
+    return errorResponse("event_unavailable", 404);
+  }
+  if (result?.status === "ticket_unavailable") {
+    return errorResponse("ticket_unavailable", 409);
+  }
+  if (result?.status === "duplicate_registration") {
+    return errorResponse("duplicate_registration", 409);
+  }
   if (result?.status !== "success" || !result.registration_id || !result.ticket_code) {
-    return NextResponse.json({ status: result?.status ?? "server_error" });
+    console.error("Registration RPC returned an unexpected result", result?.status);
+    return errorResponse("server_error", 500);
   }
 
   const { data: ticketData, error: ticketError } = await supabase.rpc("get_public_ticket", {
@@ -91,10 +116,10 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({
-    status: "success",
-    registration_id: result.registration_id,
-    ticket_code: result.ticket_code,
-    email_sent: emailSent,
-  });
+  const responseBody: RegistrationSuccessResponse = {
+    registrationId: result.registration_id,
+    ticketCode: result.ticket_code,
+    emailSent,
+  };
+  return NextResponse.json(responseBody, { status: 201 });
 }

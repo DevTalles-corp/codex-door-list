@@ -3,7 +3,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEventDate } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
-import type { RegistrationData, RegistrationResult } from "@/lib/types";
+import type {
+  RegistrationData,
+  RegistrationErrorCode,
+  RegistrationErrorResponse,
+  RegistrationSuccessResponse,
+} from "@/lib/types";
 
 type Confirmation = {
   eventTitle: string;
@@ -16,6 +21,27 @@ type Confirmation = {
 
 function unavailableMessage() {
   return "Este evento no está disponible para registro.";
+}
+
+function registrationErrorCode(value: unknown): RegistrationErrorCode | null {
+  if (!value || typeof value !== "object" || !("error" in value)) return null;
+  const { error } = value as RegistrationErrorResponse;
+  return error === "event_unavailable"
+    || error === "ticket_unavailable"
+    || error === "duplicate_registration"
+    || error === "invalid_input"
+    || error === "server_error"
+    || error === "service_unavailable"
+    ? error
+    : null;
+}
+
+function isRegistrationSuccess(value: unknown): value is RegistrationSuccessResponse {
+  if (!value || typeof value !== "object") return false;
+  const response = value as RegistrationSuccessResponse;
+  return typeof response.registrationId === "string"
+    && typeof response.ticketCode === "string"
+    && typeof response.emailSent === "boolean";
 }
 
 export default function PublicRegistration({ eventId }: { eventId: string }) {
@@ -95,7 +121,7 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
     setSubmitting(true);
     setNotice("");
 
-    let result: RegistrationResult | null = null;
+    let result: RegistrationSuccessResponse;
     try {
       const response = await fetch("/api/registrations", {
         method: "POST",
@@ -107,44 +133,54 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
           email: normalizedEmail,
         }),
       });
-      result = (await response.json()) as RegistrationResult;
+
+      if (!response.ok) {
+        let errorCode: RegistrationErrorCode | null = null;
+        try {
+          errorCode = registrationErrorCode(await response.json());
+        } catch {
+          errorCode = null;
+        }
+
+        if (errorCode === "event_unavailable") {
+          setData(null);
+          setUnavailable(true);
+          setNotice(unavailableMessage());
+        } else if (errorCode === "ticket_unavailable") {
+          setSelectedTicket("");
+          const refreshed = await loadEvent(false);
+          if (refreshed) {
+            setNotice("Esa entrada acaba de agotarse. Elige otra opción disponible.");
+          }
+        } else if (errorCode === "duplicate_registration") {
+          setNotice("Este email ya está registrado para el evento.");
+        } else if (errorCode === "invalid_input") {
+          setNotice("Revisa tu nombre, email y tipo de entrada antes de continuar.");
+        } else {
+          setNotice("No pudimos completar tu registro. Intenta nuevamente.");
+        }
+
+        setSubmitting(false);
+        return;
+      }
+
+      const responseBody: unknown = await response.json();
+      if (!isRegistrationSuccess(responseBody)) throw new Error("Invalid registration response");
+      result = responseBody;
     } catch {
       setNotice("No pudimos completar tu registro. Intenta nuevamente.");
       setSubmitting(false);
       return;
     }
 
-    if (result?.status === "success" && result.ticket_code) {
-      setConfirmation({
-        eventTitle: data.event.title,
-        ticketName: ticket.name,
-        name: trimmedName,
-        email: normalizedEmail,
-        ticketCode: result.ticket_code,
-        emailSent: result.email_sent === true,
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    if (result?.status === "event_unavailable") {
-      setData(null);
-      setUnavailable(true);
-      setNotice(unavailableMessage());
-    } else if (result?.status === "ticket_unavailable") {
-      setSelectedTicket("");
-      const refreshed = await loadEvent(false);
-      if (refreshed) {
-        setNotice("Esa entrada acaba de agotarse. Elige otra opción disponible.");
-      }
-    } else if (result?.status === "duplicate_registration") {
-      setNotice("Este email ya está registrado para el evento.");
-    } else if (result?.status === "invalid_input") {
-      setNotice("Revisa tu nombre, email y tipo de entrada antes de continuar.");
-    } else {
-      setNotice("No pudimos completar tu registro. Intenta nuevamente.");
-    }
-
+    setConfirmation({
+      eventTitle: data.event.title,
+      ticketName: ticket.name,
+      name: trimmedName,
+      email: normalizedEmail,
+      ticketCode: result.ticketCode,
+      emailSent: result.emailSent,
+    });
     setSubmitting(false);
   }
 

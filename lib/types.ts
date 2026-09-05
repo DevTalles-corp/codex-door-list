@@ -36,7 +36,7 @@ export type RegistrationData = {
   ticket_types: AvailableTicketType[];
 };
 
-export type RegistrationStatus =
+export type RegistrationRpcStatus =
   | "success"
   | "event_unavailable"
   | "ticket_unavailable"
@@ -51,11 +51,22 @@ export type RegistrationRequest = {
   email?: unknown;
 };
 
-export type RegistrationResult = {
-  status: RegistrationStatus;
+export type RegistrationRpcResult = {
+  status: RegistrationRpcStatus;
   registration_id: string | null;
   ticket_code: string | null;
-  email_sent?: boolean;
+};
+
+export type RegistrationErrorCode = Exclude<RegistrationRpcStatus, "success"> | "service_unavailable";
+
+export type RegistrationErrorResponse = {
+  error: RegistrationErrorCode;
+};
+
+export type RegistrationSuccessResponse = {
+  registrationId: string;
+  ticketCode: string;
+  emailSent: boolean;
 };
 
 export type TicketStatus = "valid" | "used" | "revoked";
