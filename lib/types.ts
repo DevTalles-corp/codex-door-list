@@ -8,6 +8,7 @@ export type Event = {
   venue: string;
   max_capacity: number;
   status: EventStatus;
+  published_at: string | null;
 };
 
 export type EventListing = Pick<
@@ -90,3 +91,48 @@ export type Ticket = {
 };
 
 export type RegistrationTicket = Omit<Ticket, "status" | "issued_at">;
+
+export type OrganizerEventSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  eventDate: string;
+  venue: string;
+  maxCapacity: number;
+  status: EventStatus;
+};
+
+export type OrganizerTicketTypeMetrics = {
+  id: string;
+  name: string;
+  maxCapacity: number;
+  registrationCount: number;
+};
+
+export type OrganizerRegistration = {
+  id: string;
+  attendeeName: string;
+  attendeeEmail: string;
+  registeredAt: string;
+  ticketType: Pick<OrganizerTicketTypeMetrics, "id" | "name">;
+};
+
+export type OrganizerEventDashboard = {
+  event: OrganizerEventSummary;
+  ticketTypes: OrganizerTicketTypeMetrics[];
+  registrations: OrganizerRegistration[];
+};
+
+export type DailyRegistrationCount = {
+  date: string;
+  count: number;
+};
+
+export type DailyRegistrationsResponse = {
+  publishedAt: string | null;
+  registrationsByDay: DailyRegistrationCount[];
+};
+
+export type ApiErrorResponse = {
+  error: string;
+};
