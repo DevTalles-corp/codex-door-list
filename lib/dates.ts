@@ -11,6 +11,31 @@ function laPazDate(value: string | Date) {
   }).format(new Date(value));
 }
 
+export function toLaPazDateKey(value: string | Date) {
+  return laPazDate(value);
+}
+
+export function getDateKeysBetween(start: string, end: string) {
+  const dates: string[] = [];
+  const cursor = new Date(`${start}T12:00:00Z`);
+  const finalDate = new Date(`${end}T12:00:00Z`);
+
+  while (cursor <= finalDate) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
+export function formatDailyRegistrationDate(value: string) {
+  return new Intl.DateTimeFormat("es-BO", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T12:00:00Z`));
+}
+
 export function formatEventDate(value: string) {
   return new Intl.DateTimeFormat("es-BO", {
     dateStyle: "full",
