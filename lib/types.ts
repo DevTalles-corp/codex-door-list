@@ -105,8 +105,13 @@ export type OrganizerEventSummary = {
 export type OrganizerTicketTypeMetrics = {
   id: string;
   name: string;
-  maxCapacity: number;
+  maxCapacity: number | null;
   registrationCount: number;
+};
+
+export type OrganizerTicket = {
+  code: string;
+  status: Exclude<TicketStatus, "revoked">;
 };
 
 export type OrganizerRegistration = {
@@ -115,6 +120,7 @@ export type OrganizerRegistration = {
   attendeeEmail: string;
   registeredAt: string;
   ticketType: Pick<OrganizerTicketTypeMetrics, "id" | "name">;
+  ticket: OrganizerTicket;
 };
 
 export type OrganizerEventDashboard = {

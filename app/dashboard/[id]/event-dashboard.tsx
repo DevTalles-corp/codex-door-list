@@ -113,6 +113,7 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
+  const [exportState, setExportState] = useState<"idle" | "loading" | "error">("idle");
   const [chartState, setChartState] = useState<ChartState>({ status: "loading", data: null });
 
   const loadDashboard = useCallback(async () => {
@@ -148,6 +149,32 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
       setChartState({ status: "ready", data });
     } catch {
       setChartState({ status: "error", data: null });
+    }
+  }, [eventId, session.access_token]);
+
+  const downloadAttendees = useCallback(async () => {
+    setExportState("loading");
+    try {
+      const response = await fetch(`/api/eventos/${eventId}/asistentes`, {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!response.ok) {
+        setExportState("error");
+        return;
+      }
+
+      const contentDisposition = response.headers.get("content-disposition");
+      const fileName = contentDisposition?.match(/filename="([^"]+)"/)?.[1] ?? "asistentes.csv";
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+      setExportState("idle");
+    } catch {
+      setExportState("error");
     }
   }, [eventId, session.access_token]);
 
@@ -269,17 +296,29 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
         ) : (
           <div className="capacity-grid">
             {dashboard.ticketTypes.map((ticketType) => {
-              const percentage = Math.min((ticketType.registrationCount / ticketType.maxCapacity) * 100, 100);
+              const percentage = ticketType.maxCapacity === null
+                ? null
+                : Math.min((ticketType.registrationCount / ticketType.maxCapacity) * 100, 100);
               return (
                 <article className="metric-card" key={ticketType.id}>
                   <div className="metric-card-heading">
                     <h3>{ticketType.name}</h3>
-                    <strong>{ticketType.registrationCount} / {ticketType.maxCapacity}</strong>
+                    <strong>
+                      {ticketType.maxCapacity === null
+                        ? `${ticketType.registrationCount} / sin límite`
+                        : `${ticketType.registrationCount} / ${ticketType.maxCapacity}`}
+                    </strong>
                   </div>
-                  <div className="capacity-track" aria-label={`${ticketType.registrationCount} de ${ticketType.maxCapacity} registros`}>
-                    <span style={{ width: `${percentage}%` }} />
-                  </div>
-                  <p>{ticketType.maxCapacity - ticketType.registrationCount} lugares disponibles</p>
+                  {percentage === null ? null : (
+                    <div className="capacity-track" aria-label={`${ticketType.registrationCount} de ${ticketType.maxCapacity} entradas vendidas`}>
+                      <span style={{ width: `${percentage}%` }} />
+                    </div>
+                  )}
+                  <p>
+                    {ticketType.maxCapacity === null
+                      ? "Sin límite de entradas"
+                      : `${Math.max(ticketType.maxCapacity - ticketType.registrationCount, 0)} lugares disponibles`}
+                  </p>
                 </article>
               );
             })}
@@ -300,8 +339,24 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
       <section className="data-section" aria-labelledby="attendees-heading">
         <div className="section-heading">
           <h2 id="attendees-heading">Asistentes registrados</h2>
-          <span>{dashboard.registrations.length} personas</span>
+          <div className="section-heading-actions">
+            <span>{dashboard.registrations.length} personas</span>
+            <button
+              className="button button-secondary"
+              type="button"
+              disabled={exportState === "loading"}
+              aria-busy={exportState === "loading"}
+              onClick={() => void downloadAttendees()}
+            >
+              {exportState === "loading" ? "Descargando…" : "Descargar CSV"}
+            </button>
+          </div>
         </div>
+        {exportState === "error" ? (
+          <p className="alert alert-error" role="alert">
+            No pudimos descargar los asistentes. Intenta nuevamente.
+          </p>
+        ) : null}
         <div className="table-wrap">
           <table className="data-table">
             <caption className="visually-hidden">Personas registradas y su tipo de entrada</caption>

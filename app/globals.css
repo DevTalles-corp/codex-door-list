@@ -85,6 +85,7 @@ label { display: grid; gap: var(--space-2); font-size: var(--font-label); font-w
 .section-heading h2 { margin: 0; }
 .section-heading span { color: var(--color-text-muted); font-size: var(--font-supporting); font-weight: 700; }
 .section-heading p { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--font-supporting); }
+.section-heading-actions { display: flex; align-items: center; gap: var(--space-3); }
 
 .data-state, .dashboard-state, .landing-state, .inline-state { border: 1px solid var(--color-border); border-radius: var(--radius-panel); padding: var(--space-6); background: var(--color-surface); text-align: center; }
 .data-state { display: grid; justify-items: center; gap: var(--space-4); }
@@ -245,6 +246,7 @@ small { color: var(--color-text-muted); }
   .page-shell, .shell, .landing-shell { padding-top: var(--space-6); }
   .page-header, .shell > header, .detail-header { display: grid; }
   .page-header > .button, .page-header > button, .summary-card { width: 100%; }
+  .section-heading-actions { align-items: flex-end; flex-direction: column; }
   .editor, .fields, .public-page { grid-template-columns: 1fr; }
   .wide { grid-column: auto; }
   .public-page { gap: var(--space-6); }
