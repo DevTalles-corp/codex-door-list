@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEventDate } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
@@ -186,58 +187,73 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
 
   if (loading) {
     return (
-      <main className="public-shell public-state" aria-busy="true">
-        <p className="eyebrow">Door List</p>
-        <h1>Cargando evento…</h1>
-        <p>Estamos verificando la disponibilidad.</p>
+      <main className="page-shell public-page" aria-busy="true">
+        <p className="visually-hidden" role="status">Cargando evento…</p>
+        <header className="public-event-header" aria-hidden="true">
+          <span className="skeleton skeleton-compact" />
+          <span className="skeleton skeleton-title" />
+          <span className="skeleton skeleton-secondary" />
+          <span className="skeleton skeleton-primary" />
+        </header>
+        <div className="registration-card" aria-hidden="true">
+          <span className="skeleton skeleton-section-title" />
+          <span className="skeleton skeleton-secondary" />
+          <span className="skeleton skeleton-field" />
+          <span className="skeleton skeleton-field" />
+          <span className="skeleton skeleton-field" />
+        </div>
       </main>
     );
   }
 
   if (unavailable || !data) {
     return (
-      <main className="public-shell public-state">
-        <p className="eyebrow">Door List</p>
-        <h1>Registro no disponible</h1>
-        <p className="public-alert error" role="alert" tabIndex={-1} ref={noticeRef}>
-          {notice || unavailableMessage()}
-        </p>
-        {!unavailable && (
-          <button type="button" onClick={() => void loadEvent()}>
-            Intentar nuevamente
-          </button>
-        )}
+      <main className="page-shell state-page">
+        <div className="data-state">
+          <p className="eyebrow">Door List</p>
+          <h1>Registro no disponible</h1>
+          <p className="alert alert-error" role="alert" tabIndex={-1} ref={noticeRef}>
+            {notice || unavailableMessage()}
+          </p>
+          {!unavailable && (
+            <button className="button button-primary" type="button" onClick={() => void loadEvent()}>
+              Intentar nuevamente
+            </button>
+          )}
+        </div>
       </main>
     );
   }
 
   if (confirmation) {
     return (
-      <main className="public-shell public-state">
-        <p className="eyebrow">Door List</p>
-        <div className="success-mark" aria-hidden="true">✓</div>
-        <h1>¡Registro confirmado!</h1>
-        <p>Tu lugar para <strong>{confirmation.eventTitle}</strong> está reservado.</p>
-        <p className={`public-alert ${confirmation.emailSent ? "success" : "error"}`} role="status">
-          {confirmation.emailSent
-            ? `Enviamos la entrada con el QR a ${confirmation.email}.`
-            : "Tu entrada fue creada, pero no pudimos enviarla por email. Puedes abrirla desde el enlace de abajo."}
-        </p>
-        <dl className="confirmation-details">
-          <div><dt>Entrada</dt><dd>{confirmation.ticketName}</dd></div>
-          <div><dt>Nombre</dt><dd>{confirmation.name}</dd></div>
-          <div><dt>Email</dt><dd>{confirmation.email}</dd></div>
-        </dl>
-        <a className="ticket-link" href={`/entradas/${confirmation.ticketCode}`}>
-          Ver mi entrada y código QR
-        </a>
+      <main className="page-shell state-page">
+        <div className="confirmation-card">
+          <p className="eyebrow">Door List</p>
+          <div className="success-mark" aria-hidden="true">✓</div>
+          <h1>¡Registro confirmado!</h1>
+          <p>Tu lugar para <strong>{confirmation.eventTitle}</strong> está reservado.</p>
+          <p className={`alert ${confirmation.emailSent ? "alert-success" : "alert-warning"}`} role="status">
+            {confirmation.emailSent
+              ? `Enviamos la entrada con el QR a ${confirmation.email}.`
+              : "Tu entrada fue creada, pero no pudimos enviarla por email. Puedes abrirla desde el enlace de abajo."}
+          </p>
+          <dl className="confirmation-details">
+            <div><dt>Entrada</dt><dd>{confirmation.ticketName}</dd></div>
+            <div><dt>Nombre</dt><dd>{confirmation.name}</dd></div>
+            <div><dt>Email</dt><dd>{confirmation.email}</dd></div>
+          </dl>
+          <Link className="button button-primary" href={`/entradas/${confirmation.ticketCode}`}>
+            Ver mi entrada y código QR
+          </Link>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="public-shell">
-      <section className="event-summary" aria-labelledby="event-title">
+    <main className="page-shell public-page">
+      <header className="public-event-header">
         <p className="eyebrow">Registro público</p>
         <h1 id="event-title">{data.event.title}</h1>
         <p className="event-meta">
@@ -245,22 +261,23 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
           {data.event.venue}
         </p>
         {data.event.description && <p className="event-description">{data.event.description}</p>}
-      </section>
+      </header>
 
       <section className="registration-card" aria-labelledby="registration-title">
         <h2 id="registration-title">Reserva tu entrada</h2>
-        <p className="help">Todos los campos son obligatorios.</p>
+        <p className="field-help">Todos los campos son obligatorios.</p>
 
         {notice && (
-          <p className="public-alert error" role="alert" tabIndex={-1} ref={noticeRef}>
+          <p className="alert alert-error" role="alert" tabIndex={-1} ref={noticeRef}>
             {notice}
           </p>
         )}
 
         {data.ticket_types.length === 0 ? (
-          <p className="public-alert" role="status">
-            Este evento todavía no tiene tipos de entrada disponibles.
-          </p>
+          <div className="inline-state">
+            <strong>No hay entradas disponibles</strong>
+            <p>Este evento todavía no tiene tipos de entrada para reservar.</p>
+          </div>
         ) : (
           <form onSubmit={submitRegistration} aria-busy={submitting}>
             <fieldset className="ticket-options" disabled={submitting}>
@@ -287,9 +304,11 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
               })}
             </fieldset>
 
-            <label>
-              Nombre
+            <label htmlFor="attendee-name">
+              Nombre completo
               <input
+                id="attendee-name"
+                name="name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 maxLength={120}
@@ -299,9 +318,11 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
               />
             </label>
 
-            <label>
+            <label htmlFor="attendee-email">
               Email
               <input
+                id="attendee-email"
+                name="email"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -313,7 +334,8 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
             </label>
 
             <button
-              className="submit-registration"
+              className="button button-primary submit-registration"
+              type="submit"
               disabled={submitting || availableTickets.length === 0}
             >
               {submitting ? "Registrando…" : "Confirmar registro"}
