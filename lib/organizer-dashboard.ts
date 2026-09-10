@@ -19,7 +19,7 @@ type EventRow = {
 type TicketTypeRow = {
   id: string;
   name: string;
-  max_capacity: number;
+  max_capacity: number | null;
 };
 
 type RegistrationRow = {
@@ -29,6 +29,20 @@ type RegistrationRow = {
   ticket_type_id: string;
   created_at: string;
 };
+
+type TicketRow = {
+  registration_id: string;
+  code: string;
+  status: "valid" | "used" | "revoked";
+};
+
+type ActiveTicketRow = Omit<TicketRow, "status"> & {
+  status: "valid" | "used";
+};
+
+function isActiveTicket(ticket: TicketRow): ticket is ActiveTicketRow {
+  return ticket.status === "valid" || ticket.status === "used";
+}
 
 function mapEvent(row: EventRow): OrganizerEventSummary {
   return {
@@ -89,7 +103,26 @@ export async function getOrganizerEventDashboard(
 
   const ticketTypeRows = ticketTypesResult.data as TicketTypeRow[];
   const registrationRows = registrationsResult.data as RegistrationRow[];
-  const registrationCounts = registrationRows.reduce<Record<string, number>>((counts, registration) => {
+  const registrationIds = registrationRows.map((registration) => registration.id);
+  const ticketRows: TicketRow[] = registrationIds.length === 0
+    ? []
+    : await supabase
+      .from("tickets")
+      .select("registration_id,code,status")
+      .in("registration_id", registrationIds)
+      .then(({ data, error }) => {
+        if (error) throw error;
+        return data as TicketRow[];
+      });
+  const activeTicketsByRegistrationId = new Map(
+    ticketRows
+      .filter(isActiveTicket)
+      .map((ticket) => [ticket.registration_id, ticket]),
+  );
+  const activeRegistrations = registrationRows.filter((registration) =>
+    activeTicketsByRegistrationId.has(registration.id),
+  );
+  const registrationCounts = activeRegistrations.reduce<Record<string, number>>((counts, registration) => {
     counts[registration.ticket_type_id] = (counts[registration.ticket_type_id] ?? 0) + 1;
     return counts;
   }, {});
@@ -100,15 +133,17 @@ export async function getOrganizerEventDashboard(
     registrationCount: registrationCounts[ticketType.id] ?? 0,
   }));
   const ticketTypesById = new Map(ticketTypes.map((ticketType) => [ticketType.id, ticketType]));
-  const registrations: OrganizerRegistration[] = registrationRows.flatMap((registration) => {
+  const registrations: OrganizerRegistration[] = activeRegistrations.flatMap((registration) => {
     const ticketType = ticketTypesById.get(registration.ticket_type_id);
-    if (!ticketType) return [];
+    const ticket = activeTicketsByRegistrationId.get(registration.id);
+    if (!ticketType || !ticket) return [];
     return [{
       id: registration.id,
       attendeeName: registration.attendee_name,
       attendeeEmail: registration.attendee_email,
       registeredAt: registration.created_at,
       ticketType: { id: ticketType.id, name: ticketType.name },
+      ticket: { code: ticket.code, status: ticket.status },
     }];
   });
 
