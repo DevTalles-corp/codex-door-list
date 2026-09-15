@@ -44,6 +44,34 @@ export function formatEventDate(value: string) {
   }).format(new Date(value));
 }
 
+export function formatEventAgendaDate(value: string) {
+  return new Intl.DateTimeFormat("es-BO", {
+    day: "numeric",
+    month: "short",
+    weekday: "short",
+    timeZone: LA_PAZ_TIME_ZONE,
+  }).format(new Date(value));
+}
+
+export function getEventDateGroup(value: string) {
+  const eventDate = toLaPazDateKey(value);
+  const today = toLaPazDateKey(new Date());
+  const dayDifference = Math.round(
+    (new Date(`${eventDate}T12:00:00Z`).getTime() - new Date(`${today}T12:00:00Z`).getTime()) /
+      86_400_000,
+  );
+
+  if (dayDifference < 7) {
+    return "Esta semana";
+  }
+
+  if (dayDifference < 31) {
+    return "Este mes";
+  }
+
+  return "Más adelante";
+}
+
 export function formatOrganizerEventDate(value: string) {
   return new Date(value).toLocaleString("es-BO", {
     timeZone: LA_PAZ_TIME_ZONE,

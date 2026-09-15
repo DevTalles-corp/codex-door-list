@@ -52,6 +52,7 @@
   --qr-width: 13.75rem;
   --touch-target: 2.75rem;
   --progress-height: 0.5rem;
+  --event-summary-lines: 3;
   --transition-standard: 150ms ease;
 }
 
@@ -199,6 +200,30 @@ label { display: grid; gap: var(--space-2); font-size: var(--font-label); font-w
 .auth > p:not(.eyebrow):not(.alert) { color: var(--color-text-muted); }
 .landing-header { max-width: var(--reading-width); margin-bottom: var(--space-7); }
 .landing-header > p:last-child { margin: var(--space-4) 0 0; color: var(--color-text-subtle); }
+.event-list-state { display: grid; gap: var(--space-7); }
+.event-group { display: grid; gap: var(--space-4); }
+.event-group > h2 { margin: 0; }
+.event-agenda { display: grid; margin: 0; padding: 0; list-style: none; }
+.event-agenda > li { border-top: 1px solid var(--color-border); }
+.event-agenda > li:last-child { border-bottom: 1px solid var(--color-border); }
+.agenda-event { display: grid; grid-template-columns: minmax(var(--space-8), calc(var(--space-8) * 2.5)) minmax(0, 1fr) auto; align-items: start; gap: var(--space-5); padding: var(--space-5) 0; }
+.agenda-event-featured { background: var(--color-primary-soft); margin: 0 calc(var(--space-5) * -1); padding-right: var(--space-5); padding-left: var(--space-5); }
+.agenda-event-date { color: var(--color-primary-strong); font-size: var(--font-label); font-weight: 800; line-height: 1.4; text-transform: capitalize; }
+.agenda-event-details { min-width: 0; }
+.agenda-event-details h3 { margin: 0 0 var(--space-2); font-size: var(--font-section-title); line-height: 1.3; }
+.agenda-event-venue, .agenda-event-time, .agenda-event-description { color: var(--color-text-subtle); }
+.agenda-event-venue, .agenda-event-time { margin: 0; font-size: var(--font-supporting); }
+.agenda-event-description { display: -webkit-box; margin: var(--space-3) 0 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: var(--event-summary-lines); white-space: pre-wrap; }
+.agenda-event-time { margin-top: var(--space-3); color: var(--color-text-muted); }
+.agenda-event-actions { display: grid; justify-items: end; gap: var(--space-3); }
+.agenda-event-availability, .agenda-event-sold-out { margin: 0; font-size: var(--font-supporting); font-weight: 700; text-align: right; }
+.agenda-event-availability { color: var(--color-success); }
+.agenda-event-sold-out { color: var(--color-text-muted); }
+.agenda-event-action { white-space: nowrap; }
+.agenda-event-unavailable { display: inline-flex; min-height: var(--touch-target); align-items: center; color: var(--color-text-muted); font-size: var(--font-label); font-weight: 700; }
+.agenda-event-skeleton { grid-template-columns: minmax(var(--space-8), calc(var(--space-8) * 2.5)) minmax(0, 1fr) minmax(var(--space-8), calc(var(--space-8) * 3)); }
+.agenda-event-skeleton-details { display: grid; gap: var(--space-3); }
+.landing-shell ::selection { background: var(--color-primary-soft); color: var(--color-primary-strong); }
 .editor { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-bottom: var(--space-7); }
 .editor form, .cards article { border: 1px solid var(--color-border); border-radius: var(--radius-panel); padding: var(--space-5); background: var(--color-surface); }
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-4); }
@@ -252,7 +277,11 @@ small { color: var(--color-text-muted); }
   .public-page { gap: var(--space-6); }
   .public-event-header { padding-top: 0; }
   .public-event-header h1 { max-width: none; }
-  .event-list .event-card { padding: var(--space-4); }
+  .agenda-event, .agenda-event-skeleton { grid-template-columns: 1fr; gap: var(--space-3); }
+  .agenda-event-featured { margin: 0 calc(var(--space-4) * -1); padding-right: var(--space-4); padding-left: var(--space-4); }
+  .agenda-event-actions { justify-items: stretch; }
+  .agenda-event-availability, .agenda-event-sold-out { text-align: left; }
+  .agenda-event-action, .agenda-event-unavailable { width: 100%; }
   .confirmation-details div { grid-template-columns: 1fr; gap: var(--space-1); }
 }
 @media (max-width: 38.75rem) {

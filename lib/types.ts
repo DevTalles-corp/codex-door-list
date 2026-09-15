@@ -13,8 +13,10 @@ export type Event = {
 
 export type EventListing = Pick<
   Event,
-  "id" | "title" | "description" | "event_date" | "venue" | "status"
->;
+  "id" | "title" | "description" | "event_date" | "venue" | "status" | "max_capacity"
+> & {
+  remaining_capacity: number;
+};
 
 export type RegistrationEvent = Pick<
   Event,
