@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-15T00:00:00-04:00",
+  "title": "Design System: Door List",
+  "extensions": {
+    "colorMeta": {
+      "canvas": { "role": "neutral", "displayName": "Lienzo frío", "canonical": "#f8fafc", "tonalRamp": ["oklch(15% 0.01 250)", "oklch(26% 0.01 250)", "oklch(37% 0.01 250)", "oklch(48% 0.01 250)", "oklch(59% 0.01 250)", "oklch(70% 0.01 250)", "oklch(82% 0.01 250)", "oklch(96% 0.01 250)"] },
+      "surface": { "role": "neutral", "displayName": "Superficie nítida", "canonical": "#ffffff", "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(37% 0 0)", "oklch(48% 0 0)", "oklch(59% 0 0)", "oklch(70% 0 0)", "oklch(82% 0 0)", "oklch(100% 0 0)"] },
+      "text": { "role": "neutral", "displayName": "Tinta operativa", "canonical": "#0f172a", "tonalRamp": ["oklch(15% 0.03 260)", "oklch(26% 0.03 260)", "oklch(37% 0.03 260)", "oklch(48% 0.03 260)", "oklch(59% 0.03 260)", "oklch(70% 0.03 260)", "oklch(82% 0.03 260)", "oklch(95% 0.03 260)"] },
+      "trust-blue": { "role": "primary", "displayName": "Azul de confianza", "canonical": "#2563eb", "tonalRamp": ["oklch(15% 0.12 260)", "oklch(26% 0.14 260)", "oklch(37% 0.16 260)", "oklch(48% 0.18 260)", "oklch(59% 0.20 260)", "oklch(70% 0.18 260)", "oklch(82% 0.12 260)", "oklch(95% 0.04 260)"] },
+      "success": { "role": "tertiary", "displayName": "Verde de confirmación", "canonical": "#166534", "tonalRamp": ["oklch(15% 0.06 145)", "oklch(26% 0.08 145)", "oklch(37% 0.10 145)", "oklch(48% 0.12 145)", "oklch(59% 0.12 145)", "oklch(70% 0.10 145)", "oklch(82% 0.06 145)", "oklch(95% 0.02 145)"] },
+      "warning": { "role": "secondary", "displayName": "Ámbar de atención", "canonical": "#92400e", "tonalRamp": ["oklch(15% 0.05 65)", "oklch(26% 0.07 65)", "oklch(37% 0.09 65)", "oklch(48% 0.11 65)", "oklch(59% 0.13 65)", "oklch(70% 0.12 65)", "oklch(82% 0.08 65)", "oklch(95% 0.03 65)"] },
+      "danger": { "role": "secondary", "displayName": "Rojo de bloqueo", "canonical": "#991b1b", "tonalRamp": ["oklch(15% 0.07 25)", "oklch(26% 0.09 25)", "oklch(37% 0.11 25)", "oklch(48% 0.13 25)", "oklch(59% 0.15 25)", "oklch(70% 0.13 25)", "oklch(82% 0.08 25)", "oklch(95% 0.03 25)"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Título de página", "purpose": "Nombres de eventos y encabezados principales." },
+      "headline": { "displayName": "Encabezado de sección", "purpose": "Secciones, tarjetas y títulos de módulos." },
+      "title": { "displayName": "Título compacto", "purpose": "Métricas y contenido denso." },
+      "body": { "displayName": "Texto de lectura", "purpose": "Descripciones y contenido general." },
+      "label": { "displayName": "Etiqueta operativa", "purpose": "Campos, controles y metadatos." }
+    },
+    "shadows": [
+      { "name": "module-elevation", "value": "0 18px 55px rgb(15 23 42 / 0.08)", "purpose": "Agrupa una tarea o unidad de información autocontenida." },
+      { "name": "focus-ring", "value": "0 0 0 3px rgb(37 99 235 / 0.28)", "purpose": "Hace visible el foco de teclado en controles y enlaces." }
+    ],
+    "motion": [
+      { "name": "standard", "value": "150ms ease", "purpose": "Transiciones de opacidad, fondo, borde y presión de controles." },
+      { "name": "skeleton-pulse", "value": "1.5s ease-in-out infinite", "purpose": "Comunica la carga de contenido sin interrumpir el escaneo." }
+    ],
+    "breakpoints": [
+      { "name": "single-column", "value": "43.75rem" },
+      { "name": "ticket-stack", "value": "38.75rem" }
+    ],
+    "components": [
+      { "name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "Acción principal compacta y táctil.", "html": "<button class=\"ds-btn-primary\">Guardar evento</button>", "css": ".ds-btn-primary { min-height: 2.75rem; padding: 0.75rem 1rem; border: 0; border-radius: 0.55rem; background: #0f172a; color: #fff; font: 700 0.875rem/1.4 Arial, Helvetica, sans-serif; cursor: pointer; transition: opacity 150ms ease, transform 150ms ease; } .ds-btn-primary:hover { opacity: .88; } .ds-btn-primary:active { transform: translateY(.25rem); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(37 99 235 / .28); }" },
+      { "name": "Secondary Button", "kind": "button", "refersTo": "button-secondary", "description": "Acción secundaria para tareas no prioritarias.", "html": "<button class=\"ds-btn-secondary\">Cancelar</button>", "css": ".ds-btn-secondary { min-height: 2.75rem; padding: 0.75rem 1rem; border: 0; border-radius: 0.55rem; background: #e2e8f0; color: #0f172a; font: 700 0.875rem/1.4 Arial, Helvetica, sans-serif; cursor: pointer; transition: opacity 150ms ease; } .ds-btn-secondary:hover { opacity: .88; } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(37 99 235 / .28); }" },
+      { "name": "Text Field", "kind": "input", "refersTo": "input", "description": "Campo claro con foco operativo visible.", "html": "<label class=\"ds-field\">Nombre completo<input class=\"ds-input\" type=\"text\" placeholder=\"Tu nombre\"></label>", "css": ".ds-field { display: grid; gap: .5rem; color: #0f172a; font: 600 .875rem/1.4 Arial, Helvetica, sans-serif; } .ds-input { width: 100%; padding: .75rem; border: 1px solid #cbd5e1; border-radius: .55rem; background: #fff; color: #0f172a; font: 400 1rem/1.6 Arial, Helvetica, sans-serif; } .ds-input:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(37 99 235 / .28); }" },
+      { "name": "Event Card", "kind": "card", "refersTo": "event-card", "description": "Resumen elevado de un evento con acción al final.", "html": "<article class=\"ds-event-card\"><p class=\"ds-event-date\">Sábado, 20:00</p><h3>Evento de ejemplo</h3><p class=\"ds-event-venue\">Sala principal</p><button class=\"ds-event-action\">Reservar entrada</button></article>", "css": ".ds-event-card { display: flex; min-height: 15rem; flex-direction: column; padding: 1.5rem; border: 1px solid #dbe3ee; border-radius: 1.25rem; background: #fff; box-shadow: 0 18px 55px rgb(15 23 42 / .08); font-family: Arial, Helvetica, sans-serif; } .ds-event-date { margin: 0; color: #1e40af; font-size: .75rem; font-weight: 800; } .ds-event-card h3 { margin: .75rem 0 .5rem; color: #0f172a; font-size: 1.25rem; } .ds-event-venue { margin: 0; color: #475569; font-weight: 700; } .ds-event-action { align-self: flex-start; min-height: 2.75rem; margin-top: auto; padding: .75rem 1rem; border: 0; border-radius: .55rem; background: #0f172a; color: #fff; font-weight: 700; }" },
+      { "name": "Status Badge", "kind": "chip", "refersTo": "status-badge", "description": "Estado escaneable para publicación y validez de entrada.", "html": "<span class=\"ds-status\">Publicado</span>", "css": ".ds-status { display: inline-flex; align-items: center; padding: .25rem .5rem; border-radius: 999px; background: #f0fdf4; color: #166534; font: 800 .75rem/1.3 Arial, Helvetica, sans-serif; }" },
+      { "name": "Ticket Option", "kind": "custom", "refersTo": "ticket-option", "description": "Selección de tipo de entrada con señal azul al activarse.", "html": "<label class=\"ds-ticket-option\"><input type=\"radio\" checked><span><strong>Entrada general</strong><small>Disponible</small></span></label>", "css": ".ds-ticket-option { display: flex; align-items: center; gap: .75rem; padding: .75rem; border: 1px solid #2563eb; border-radius: .75rem; background: #eff6ff; color: #0f172a; font-family: Arial, Helvetica, sans-serif; cursor: pointer; } .ds-ticket-option input { accent-color: #2563eb; } .ds-ticket-option span { display: grid; gap: .25rem; } .ds-ticket-option small { color: #64748b; font-weight: 400; }" }
+    ],
+    "narrative": {
+      "northStar": "La mesa de control",
+      "overview": "Door List se comporta como una superficie de operación: la jerarquía es inmediata, los datos se pueden recorrer rápidamente y cada control responde con claridad. La interfaz no compite con la tarea de registrar o verificar acceso. La elevación separa los módulos de trabajo del lienzo sin volverlos ornamentales. El listado público de eventos es la única superficie que puede incorporar un toque de atracción visual para impulsar el registro; el resto del producto mantiene una presencia compacta y sobria.",
+      "keyCharacteristics": ["Precisión legible para uso presencial y rápido.", "Azul de confianza reservado para acciones, selección y datos relevantes.", "Superficies elevadas, bordes finos y estados semánticos explícitos.", "Densidad contenida: todo elemento debe ayudar a decidir, registrar o comprobar."],
+      "rules": [
+        { "name": "Trust Signal Rule", "body": "El azul solo señala una acción, una selección o una métrica prioritaria; no se usa para llenar superficies completas.", "section": "colors" },
+        { "name": "Semantic State Rule", "body": "Éxito, advertencia y peligro comunican estado operativo y no sustituyen al azul primario.", "section": "colors" },
+        { "name": "Scan-First Rule", "body": "Los títulos y etiquetas mantienen peso alto; no se reduce el contraste ni se usa tipografía decorativa en las superficies de operación.", "section": "typography" },
+        { "name": "Work Surface Rule", "body": "Las superficies elevadas contienen una tarea o unidad de información completa; no se apilan sombras para decorar.", "section": "elevation" }
+      ],
+      "dos": ["Do usar superficies elevadas para formularios, tarjetas, entradas y módulos de datos.", "Do preservar controles de al menos 2.75rem de alto y foco visible de 3px.", "Do usar el azul de confianza para orientar acciones y selección, y los colores semánticos para estados.", "Do reservar la decoración ligera para el listado público de eventos."],
+      "donts": ["Don't introducir decoración en paneles, formularios, tablas, entradas o controles de puerta.", "Don't usar gradientes, animación ornamental o efectos que retrasen la lectura y comprobación.", "Don't sustituir etiquetas y texto de estado por color solamente.", "Don't reducir tablas o controles críticos hasta comprometer su uso táctil y presencial."]
+    }
+  }
+}
