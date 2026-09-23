@@ -4,14 +4,12 @@ Landing inicial para una plataforma de tickets de eventos.
 
 ## Desarrollo
 
-Crea un archivo `.env.local` con las variables públicas de Supabase y las
-credenciales de email:
+Copia `.env.example` a `.env.local` y completa los valores. Las variables
+`NEXT_PUBLIC_` se envían al navegador; `RESEND_API_KEY` debe permanecer en el
+servidor.
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-RESEND_API_KEY=
-RESEND_FROM_EMAIL=
+cp .env.example .env.local
 ```
 
 ```bash
