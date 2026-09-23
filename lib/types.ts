@@ -114,6 +114,19 @@ export type OrganizerTicketTypeMetrics = {
 export type OrganizerTicket = {
   code: string;
   status: Exclude<TicketStatus, "revoked">;
+  checkedInAt: string | null;
+};
+
+export type CheckInRequest = { eventId?: unknown; ticketCode?: unknown };
+export type CheckInSuccessResponse = {
+  status: "valid";
+  attendeeName: string;
+  ticketTypeName: string;
+};
+export type CheckInRpcResult = {
+  status: "valid" | "used" | "not_found";
+  attendee_name: string | null;
+  ticket_type_name: string | null;
 };
 
 export type OrganizerRegistration = {

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import DashboardAuth from "./dashboard-auth";
+import OrganizerAuth from "@/components/organizer-auth";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  return <DashboardAuth>{children}</DashboardAuth>;
+  return <OrganizerAuth>{children}</OrganizerAuth>;
 }

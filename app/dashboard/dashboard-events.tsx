@@ -6,7 +6,7 @@ import { formatEventDate } from "@/lib/dates";
 import { getOrganizerEvents } from "@/lib/organizer-dashboard";
 import { supabase } from "@/lib/supabase/client";
 import type { OrganizerEventSummary } from "@/lib/types";
-import { useOrganizerSession } from "./dashboard-auth";
+import { useOrganizerSession } from "@/components/organizer-auth";
 
 export default function DashboardEvents() {
   const session = useOrganizerSession();

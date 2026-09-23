@@ -14,7 +14,7 @@ import type {
   DailyRegistrationsResponse,
   OrganizerEventDashboard,
 } from "@/lib/types";
-import { useOrganizerSession } from "../dashboard-auth";
+import { useOrganizerSession } from "@/components/organizer-auth";
 
 type ChartState =
   | { status: "loading"; data: null }
@@ -183,6 +183,14 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
   }, [loadDashboard]);
 
   useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadDashboard();
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => document.removeEventListener("visibilitychange", refreshWhenVisible);
+  }, [loadDashboard]);
+
+  useEffect(() => {
     void Promise.resolve().then(loadDailyRegistrations);
   }, [loadDailyRegistrations]);
 
@@ -190,6 +198,7 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
     () => dashboard?.ticketTypes.reduce((total, ticketType) => total + ticketType.registrationCount, 0) ?? 0,
     [dashboard],
   );
+  const checkedInCount = dashboard?.registrations.filter((registration) => registration.ticket.status === "used").length ?? 0;
 
   if (loading) {
     return (
@@ -227,13 +236,14 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
           <span className="skeleton skeleton-section-title" />
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th scope="col">Asistente</th><th scope="col">Tipo de entrada</th><th scope="col">Registro</th></tr></thead>
+              <thead><tr><th scope="col">Asistente</th><th scope="col">Tipo de entrada</th><th scope="col">Registro</th><th scope="col">Ingreso</th></tr></thead>
               <tbody>
                 {Array.from({ length: 5 }, (_, index) => (
                   <tr key={index}>
                     <td><span className="skeleton skeleton-primary" /></td>
                     <td><span className="skeleton skeleton-compact" /></td>
                     <td><span className="skeleton skeleton-secondary" /></td>
+                    <td><span className="skeleton skeleton-compact" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -282,8 +292,11 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
         <div className="summary-card">
           <strong>{totalRegistrations}</strong>
           <span>registros totales</span>
+          <span>{checkedInCount} ingresos registrados</span>
         </div>
       </header>
+
+      <Link className="button button-primary dashboard-scan-link" href={`/scan?eventId=${eventId}`}>Abrir lector de entradas</Link>
 
       <section className="data-section" aria-labelledby="ticket-types-heading">
         <div className="section-heading">
@@ -364,11 +377,11 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
         <div className="table-wrap">
           <table className="data-table">
             <caption className="visually-hidden">Personas registradas y su tipo de entrada</caption>
-            <thead><tr><th scope="col">Asistente</th><th scope="col">Tipo de entrada</th><th scope="col">Registro</th></tr></thead>
+            <thead><tr><th scope="col">Asistente</th><th scope="col">Tipo de entrada</th><th scope="col">Registro</th><th scope="col">Ingreso</th></tr></thead>
             <tbody>
               {!hasAttendees ? (
                 <tr>
-                  <td colSpan={3}>
+                  <td colSpan={4}>
                     <div className="table-state">
                       <strong>Todavía no hay asistentes registrados</strong>
                       <p>Las personas aparecerán aquí cuando completen su registro.</p>
@@ -380,6 +393,7 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
                     <td><strong>{registration.attendeeName}</strong><span>{registration.attendeeEmail}</span></td>
                     <td><span className="status-badge status-neutral">{registration.ticketType.name}</span></td>
                     <td>{formatOrganizerEventDate(registration.registeredAt)}</td>
+                    <td>{registration.ticket.status === "used" ? <><span className="status-badge status-checked-in">Ingresó</span>{registration.ticket.checkedInAt ? <span className="check-in-time">{formatOrganizerEventDate(registration.ticket.checkedInAt)}</span> : null}</> : <span className="status-badge status-neutral">Pendiente</span>}</td>
                   </tr>
                 ))}
             </tbody>

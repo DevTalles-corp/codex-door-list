@@ -34,6 +34,7 @@ type TicketRow = {
   registration_id: string;
   code: string;
   status: "valid" | "used" | "revoked";
+  checked_in_at: string | null;
 };
 
 type ActiveTicketRow = Omit<TicketRow, "status"> & {
@@ -108,7 +109,7 @@ export async function getOrganizerEventDashboard(
     ? []
     : await supabase
       .from("tickets")
-      .select("registration_id,code,status")
+      .select("registration_id,code,status,checked_in_at")
       .in("registration_id", registrationIds)
       .then(({ data, error }) => {
         if (error) throw error;
@@ -143,7 +144,7 @@ export async function getOrganizerEventDashboard(
       attendeeEmail: registration.attendee_email,
       registeredAt: registration.created_at,
       ticketType: { id: ticketType.id, name: ticketType.name },
-      ticket: { code: ticket.code, status: ticket.status },
+      ticket: { code: ticket.code, status: ticket.status, checkedInAt: ticket.checked_in_at },
     }];
   });
 
