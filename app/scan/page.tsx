@@ -5,3 +5,4 @@ export default async function ScanPage({ searchParams }: { searchParams: Promise
   const { eventId } = await searchParams;
   return <OrganizerAuth><ScanScreen initialEventId={typeof eventId === "string" ? eventId : ""} /></OrganizerAuth>;
 }
+

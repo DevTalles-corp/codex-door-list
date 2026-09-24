@@ -193,3 +193,4 @@ export default function ScanScreen({ initialEventId }: { initialEventId: string 
     </main>
   );
 }
+
