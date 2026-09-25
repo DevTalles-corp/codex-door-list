@@ -16,10 +16,12 @@ export async function sendRegistrationEmail({
   registrationId,
   ticket,
   ticketUrl,
+  idempotencyKey = `registration-ticket/${registrationId}`,
 }: {
   registrationId: string;
   ticket: RegistrationTicket;
   ticketUrl: string;
+  idempotencyKey?: string;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
@@ -116,7 +118,7 @@ export async function sendRegistrationEmail({
       ],
     },
     {
-      idempotencyKey: `registration-ticket/${registrationId}`,
+      idempotencyKey,
     },
   );
 
