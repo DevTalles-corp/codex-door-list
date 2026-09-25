@@ -21,6 +21,8 @@ type ChartState =
   | { status: "error"; data: null }
   | { status: "ready"; data: DailyRegistrationsResponse };
 
+type ResendState = "submitting" | "success" | "error";
+
 function RegistrationsChart({
   state,
   onRetry,
@@ -114,6 +116,7 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
   const [exportState, setExportState] = useState<"idle" | "loading" | "error">("idle");
+  const [resendStates, setResendStates] = useState<Record<string, ResendState>>({});
   const [chartState, setChartState] = useState<ChartState>({ status: "loading", data: null });
 
   const loadDashboard = useCallback(async () => {
@@ -178,6 +181,27 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
     }
   }, [eventId, session.access_token]);
 
+  const resendTicket = useCallback(async (registrationId: string) => {
+    setResendStates((states) => ({ ...states, [registrationId]: "submitting" }));
+    try {
+      const response = await fetch(`/api/eventos/${eventId}/reenviar-entrada`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ registrationId }),
+      });
+      setResendStates((states) => ({
+        ...states,
+        [registrationId]: response.ok ? "success" : "error",
+      }));
+    } catch {
+      setResendStates((states) => ({ ...states, [registrationId]: "error" }));
+    }
+  }, [eventId, session.access_token]);
+
   useEffect(() => {
     void Promise.resolve().then(loadDashboard);
   }, [loadDashboard]);
@@ -236,13 +260,14 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
           <span className="skeleton skeleton-section-title" />
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th scope="col">Asistente</th><th scope="col">Tipo de entrada</th><th scope="col">Registro</th><th scope="col">Ingreso</th></tr></thead>
+              <thead><tr><th scope="col">Asistente</th><th scope="col">Tipo de entrada</th><th scope="col">Registro</th><th scope="col">Ingreso</th><th scope="col">Acciones</th></tr></thead>
               <tbody>
                 {Array.from({ length: 5 }, (_, index) => (
                   <tr key={index}>
                     <td><span className="skeleton skeleton-primary" /></td>
                     <td><span className="skeleton skeleton-compact" /></td>
                     <td><span className="skeleton skeleton-secondary" /></td>
+                    <td><span className="skeleton skeleton-compact" /></td>
                     <td><span className="skeleton skeleton-compact" /></td>
                   </tr>
                 ))}
@@ -377,11 +402,11 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
         <div className="table-wrap">
           <table className="data-table">
             <caption className="visually-hidden">Personas registradas y su tipo de entrada</caption>
-            <thead><tr><th scope="col">Asistente</th><th scope="col">Tipo de entrada</th><th scope="col">Registro</th><th scope="col">Ingreso</th></tr></thead>
+            <thead><tr><th scope="col">Asistente</th><th scope="col">Tipo de entrada</th><th scope="col">Registro</th><th scope="col">Ingreso</th><th scope="col">Acciones</th></tr></thead>
             <tbody>
               {!hasAttendees ? (
                 <tr>
-                  <td colSpan={4}>
+                  <td colSpan={5}>
                     <div className="table-state">
                       <strong>Todavía no hay asistentes registrados</strong>
                       <p>Las personas aparecerán aquí cuando completen su registro.</p>
@@ -394,6 +419,24 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
                     <td><span className="status-badge status-neutral">{registration.ticketType.name}</span></td>
                     <td>{formatOrganizerEventDate(registration.registeredAt)}</td>
                     <td>{registration.ticket.status === "used" ? <><span className="status-badge status-checked-in">Ingresó</span>{registration.ticket.checkedInAt ? <span className="check-in-time">{formatOrganizerEventDate(registration.ticket.checkedInAt)}</span> : null}</> : <span className="status-badge status-neutral">Pendiente</span>}</td>
+                    <td>
+                      <button
+                        className="button button-secondary"
+                        type="button"
+                        disabled={resendStates[registration.id] === "submitting"}
+                        aria-busy={resendStates[registration.id] === "submitting"}
+                        aria-label={`Reenviar entrada a ${registration.attendeeName}`}
+                        onClick={() => void resendTicket(registration.id)}
+                      >
+                        {resendStates[registration.id] === "submitting" ? "Enviando…" : "Reenviar entrada"}
+                      </button>
+                      {resendStates[registration.id] === "success" ? (
+                        <p className="alert alert-success" role="status">Entrada enviada por email.</p>
+                      ) : null}
+                      {resendStates[registration.id] === "error" ? (
+                        <p className="alert alert-error" role="alert">No pudimos enviar la entrada. Intenta nuevamente.</p>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
             </tbody>
