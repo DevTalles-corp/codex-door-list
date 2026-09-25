@@ -7,6 +7,7 @@ import { useOrganizerSession } from "@/components/organizer-auth";
 import { toLaPazDateKey } from "@/lib/dates";
 import { getOrganizerEvents } from "@/lib/organizer-dashboard";
 import { supabase } from "@/lib/supabase/client";
+import type { TicketSearchResponse } from "@/lib/door-search-types";
 import type { CheckInSuccessResponse, OrganizerEventSummary } from "@/lib/types";
 
 type Result =
@@ -19,11 +20,16 @@ function TicketScanner({ eventId }: { eventId: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
   const busyRef = useRef(false);
+  const searchRequestRef = useRef(0);
   const [cameraState, setCameraState] = useState<CameraState>("idle");
   const [result, setResult] = useState<Result | null>(null);
   const [validating, setValidating] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualCode, setManualCode] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchEmail, setSearchEmail] = useState("");
+  const [searchState, setSearchState] = useState<"idle" | "searching" | "found" | "not_found" | "error">("idle");
+  const [searchResult, setSearchResult] = useState<TicketSearchResponse | null>(null);
 
   const stopCamera = useCallback(() => {
     scannerRef.current?.stop();
@@ -77,6 +83,8 @@ function TicketScanner({ eventId }: { eventId: string }) {
     stopCamera();
     setResult(null);
     setManualOpen(false);
+    setSearchOpen(false);
+    searchRequestRef.current += 1;
     setCameraState("starting");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     if (!videoRef.current) return;
@@ -103,6 +111,40 @@ function TicketScanner({ eventId }: { eventId: string }) {
   function handleManualSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void validateCode(manualCode.trim());
+  }
+
+  async function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const requestId = ++searchRequestRef.current;
+    setSearchState("searching");
+    setSearchResult(null);
+    setResult(null);
+    try {
+      const query = new URLSearchParams({ eventId, email: searchEmail.trim() });
+      const response = await fetch(`/api/entradas/buscar?${query}`, {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (requestId !== searchRequestRef.current) return;
+      if (!response.ok) {
+        setSearchState(response.status === 404 ? "not_found" : "error");
+        return;
+      }
+      const data = (await response.json()) as TicketSearchResponse;
+      if (requestId !== searchRequestRef.current) return;
+      setSearchResult(data);
+      setSearchState("found");
+    } catch {
+      if (requestId === searchRequestRef.current) setSearchState("error");
+    }
+  }
+
+  function handleSearchCheckIn() {
+    if (!searchResult) return;
+    void validateCode(searchResult.ticketCode);
+    setSearchResult(null);
+    setSearchState("idle");
+    setSearchOpen(false);
   }
 
   const resultTitle = result?.status === "valid" ? "Entrada válida"
@@ -138,8 +180,11 @@ function TicketScanner({ eventId }: { eventId: string }) {
             {cameraState === "starting" ? "Abriendo cámara…" : result ? "Escanear otra entrada" : "Abrir cámara"}
           </button>
         )}
-        <button className="button button-secondary scan-secondary-action" type="button" disabled={validating} onClick={() => { stopCamera(); setManualOpen((open) => !open); }}>
+        <button className="button button-secondary scan-secondary-action" type="button" disabled={validating} onClick={() => { stopCamera(); searchRequestRef.current += 1; setSearchOpen(false); setSearchState("idle"); setSearchResult(null); setManualOpen((open) => !open); }}>
           {manualOpen ? "Cerrar ingreso manual" : "Ingresar código manualmente"}
+        </button>
+        <button className="button button-secondary scan-secondary-action" type="button" disabled={validating} onClick={() => { stopCamera(); searchRequestRef.current += 1; setSearchState("idle"); setSearchResult(null); setManualOpen(false); setSearchOpen((open) => !open); }}>
+          {searchOpen ? "Cerrar búsqueda" : "Buscar por email"}
         </button>
       </div>
       {manualOpen ? (
@@ -148,6 +193,32 @@ function TicketScanner({ eventId }: { eventId: string }) {
           <input id="ticket-code" className="scan-code-input" value={manualCode} onChange={(event) => setManualCode(event.target.value)} autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} inputMode="text" placeholder="Pega o escribe el código" required />
           <button className="button button-primary" type="submit" disabled={validating}>{validating ? "Validando…" : "Validar entrada"}</button>
         </form>
+      ) : null}
+      {searchOpen ? (
+        <div className="scan-email-search">
+          <form className="scan-email-form" onSubmit={(event) => void handleSearchSubmit(event)} aria-busy={searchState === "searching"}>
+            <label htmlFor="scan-email">Email del asistente</label>
+            <input id="scan-email" type="email" value={searchEmail} onChange={(event) => { searchRequestRef.current += 1; setSearchEmail(event.target.value); setSearchResult(null); setSearchState("idle"); }} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="nombre@ejemplo.com" required maxLength={254} />
+            <button className="button button-primary" type="submit" disabled={searchState === "searching" || validating}>{searchState === "searching" ? "Buscando…" : "Buscar asistente"}</button>
+          </form>
+          {searchState === "searching" ? <p className="alert" role="status">Buscando entrada…</p> : null}
+          {searchState === "not_found" ? <p className="alert alert-warning" role="status">No encontramos una entrada para ese email en este evento. Comprueba la dirección.</p> : null}
+          {searchState === "error" ? <p className="alert alert-error" role="alert">No pudimos buscar la entrada. Intenta nuevamente.</p> : null}
+          {searchState === "found" && searchResult ? (
+            <div className="scan-search-result" role="status">
+              <div>
+                <h3>{searchResult.attendeeName}</h3>
+                <p>{searchResult.attendeeEmail}</p>
+                <p>{searchResult.ticketTypeName}</p>
+              </div>
+              {searchResult.ticketStatus === "used" ? (
+                <p className="alert alert-warning">Esta entrada ya registró un ingreso.</p>
+              ) : (
+                <button className="button button-primary" type="button" onClick={handleSearchCheckIn} disabled={validating}>Registrar ingreso</button>
+              )}
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </section>
   );
