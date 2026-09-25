@@ -126,6 +126,11 @@ label { display: grid; gap: var(--space-2); font-size: var(--font-label); font-w
 .scan-secondary-action { width: 100%; }
 .scan-manual-form { border: 1px solid var(--color-border); border-radius: var(--radius-panel); padding: var(--space-4); background: var(--color-surface); }
 .scan-code-input { font-family: var(--font-code); }
+.scan-email-search { display: grid; gap: var(--space-3); }
+.scan-email-form, .scan-search-result { display: grid; gap: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-panel); padding: var(--space-4); background: var(--color-surface); }
+.scan-search-result h3 { margin: 0; font-size: var(--font-card-title); line-height: 1.4; }
+.scan-search-result p { margin: 0; color: var(--color-text-subtle); font-size: var(--font-supporting); }
+.scan-search-result .alert { color: var(--color-warning); }
 
 .event-grid, .dashboard-event-grid, .event-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--card-min-width)), 1fr)); gap: var(--space-4); }
 .event-card, .dashboard-event-card { display: flex; min-height: 100%; flex-direction: column; justify-content: space-between; border: 1px solid var(--color-border); border-radius: var(--radius-card); padding: var(--space-5); background: var(--color-surface); box-shadow: var(--shadow-card); }
