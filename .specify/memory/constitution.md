@@ -1,50 +1,86 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+- Version change: unversioned scaffold → 1.0.0 (initial constitution).
+- Modified principles: five template placeholders → I. Especificación y migraciones;
+  II. Calendario por evento; III. Identidad y reservas; IV. Aforo verificable;
+  V. Acceso, roles y auditoría.
+- Added sections: Requisitos de verificación; Flujo de desarrollo.
+- Removed sections: none; the prior document contained only template placeholders.
+- Follow-up TODOs: none.
+-->
+# Door List Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Especificación y migraciones
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Toda feature nueva o cambio de comportamiento MUST tener una spec en `specs/` antes de
+implementarse. Toda regla de negocio implementada en código, triggers o funciones SQL MUST
+estar explicada también en una spec. Todo cambio de esquema MUST introducir una migración
+versionada nueva; las migraciones ya aplicadas MUST conservarse sin reescritura. Estas reglas
+mantienen el comportamiento revisable y el historial de datos reproducible.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Calendario por evento
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+Todas las fechas persistidas MUST guardarse en UTC y cada evento MUST guardar su propia zona
+horaria. La presentación de fechas, la apertura y el cierre del registro, y la ventana de
+ingreso MUST calcularse con la zona horaria del evento; una constante global de zona horaria
+MUST NOT decidir esos resultados. El cierre del registro y la ventana de ingreso MUST ser
+campos explícitos del evento y MUST NOT deducirse del día del evento. Esto evita que una fecha
+local cambie de significado entre eventos o entornos.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Identidad y reservas
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+Cada entrada MUST identificar a un asistente. La spec de cada flujo de reserva MUST definir
+cuántas entradas puede reservar un email; un índice único MUST NOT decidir esa política por
+sí solo. Toda reserva asociada a un email sin verificar MUST caducar y liberar el cupo que
+ocupa. Estas condiciones permiten contabilizar asistentes y recuperar capacidad no confirmada.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Aforo verificable
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Toda regla de aforo MUST tener al menos un criterio de aceptación con cantidades numéricas.
+El aforo del evento MUST ser el límite global. El cupo de un tipo de entrada MUST tratarse
+como límite estricto solo cuando el organizador lo declare como tal. Ningún límite MUST
+reducirse por debajo de la cantidad ya consumida. Un evento MUST NOT publicarse sin al menos
+un tipo de entrada con cupo. Estas reglas hacen comprobables las ventas y evitan publicar
+eventos sin disponibilidad definida.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. Acceso, roles y auditoría
+
+Todo identificador incluido en un QR o URL pública MUST ser criptográficamente aleatorio,
+tener al menos 128 bits de entropía y no poder enumerarse. La vista pública de ese
+identificador MUST NOT mostrar nombre ni email. El permiso para operar la puerta MUST
+asignarse por evento y ser independiente de los permisos para editar y exportar. Una entrada
+revocada MUST conservarse con su estado en la base de datos y en la exportación de auditoría,
+pero MUST excluirse de la lista operativa de puerta. Esto protege la privacidad y conserva
+la trazabilidad de las revocaciones.
+
+## Requisitos de verificación
+
+Cada spec MUST incluir criterios de aceptación que demuestren las reglas de negocio que
+introduce o modifica. Los criterios de aforo MUST usar números concretos para capacidad,
+consumo y resultado esperado. Los criterios de calendario MUST comprobar la zona horaria
+propia del evento y los campos explícitos de cierre e ingreso. Los criterios de reservas y
+acceso MUST comprobar caducidad, liberación de cupo, permisos por evento y tratamiento de
+entradas revocadas cuando esos comportamientos estén afectados.
+
+## Flujo de desarrollo
+
+Antes de implementar, la revisión de una feature MUST comprobar que su spec existe y
+documenta las reglas afectadas. Todo cambio de esquema MUST revisarse junto con una nueva
+migración versionada, sin modificar las ya aplicadas. Antes de dar por terminado un cambio,
+la revisión MUST contrastar el comportamiento implementado con los criterios de aceptación
+de la spec y con esta constitución. Cualquier conflicto MUST resolverse actualizando la spec
+o el cambio antes de considerarlo completo.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+Esta constitución prevalece sobre otras guías del proyecto cuando hay conflicto. Toda
+enmienda MUST documentar el cambio, su motivo y el impacto sobre specs y comportamiento
+existentes; MUST someterse a revisión antes de adoptarse. La versión sigue SemVer: MAJOR
+para retirar o redefinir principios de forma incompatible, MINOR para añadir principios o
+ampliar materialmente obligaciones, y PATCH para aclaraciones sin cambio de obligación.
+Toda revisión de producto MUST comprobar conformidad con esta constitución y registrar las
+desviaciones pendientes en la spec correspondiente antes de aprobar la implementación.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-09-30 | **Last Amended**: 2026-09-30
