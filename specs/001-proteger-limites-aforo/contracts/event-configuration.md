@@ -19,12 +19,14 @@ Nueva interfaz para editar un Event existente y opcionalmente un TicketType del 
 
 | Campo | Semántica |
 |---|---|
-| `event` | Patch opcional: `title`, `description`, `eventDate`, `venue`, `status`, `maxCapacity`. Al menos un campo permitido si está presente. |
+| `event` | Patch opcional: `title`, `description`, `eventDate`, `venue`, `status`, `maxCapacity`, `timeZone`, `registrationClosesAt`, `entryOpensAt`, `entryClosesAt`. Al menos un campo permitido si está presente. |
 | `ticketType` | Patch opcional: `id` requerido, `name`, `maxCapacity`. Debe pertenecer al Event de ruta y contener al menos un campo a editar. |
 | `maxCapacity` | Integer positivo ≤ 2147483647; null, cadenas y fracciones rechazados. En TicketType, configurar este número declara el límite estricto; los cupos heredados conservan esa interpretación. Presencia solicita validación aunque sea el valor guardado; omisión significa no establecer el límite. |
 | `description` | String o null, preservando semántica del editor actual. |
 | `eventDate` | Fecha válida con offset, normalizada a UTC; reutilizar helpers actuales. No crear nueva política de calendario. |
-| `status` | `draft` o `published`; no introducir nueva condición de publicación. |
+| `timeZone` | Zona IANA válida; conservar los instantes UTC si solo cambia la zona (spec 002). |
+| `registrationClosesAt`, `entryOpensAt`, `entryClosesAt` | Instantes con offset normalizados a UTC; ventana final abre antes de cerrar (spec 002). |
+| `status` | `draft` o `published`; respetar la guarda de publicación con tipo de spec 004. |
 | `title`, `venue`, `name` | Strings no vacíos conforme a validación vigente. |
 
 Rechazar campos desconocidos y request vacío. Esta operación no crea/borrar entidades ni mueve tipos entre eventos. Las vías existentes de creación/borrado/traslado conservan comportamiento y guardas de tabla; sus errores también deben normalizarse si pasan por el panel.
@@ -73,6 +75,6 @@ Cuando corresponda a un rechazo por consumo, aclarar que las entradas revocadas 
 - La lista operativa y métricas `valid`/`used` se conservan. No usar un `min` HTML basado en ellas como autoridad; la cifra de rechazo procede del intento confirmado.
 - Mantener `/organizador/page.tsx` servidor. El editor conserva cliente por estado/handlers/sesión de navegador; no convertir páginas o layouts nuevos en cliente.
 
-## Registro existente
+## Registro corregido (spec 003)
 
-`POST /api/registrations` conserva request `eventId`, `ticketTypeId`, `name`, `email`; respuesta `201` con `registrationId`, `ticketCode`, `emailSent`; errores existentes 400/404/409/500/503. No añadir un estado de venta global nuevo ni modificar unicidad, email/QR o conteo. FR-012 modifica solo el contrato de aislamiento de `register_for_event`: callers SQL fuera de READ COMMITTED reciben `0A000` sin emisión ni registro; la ruta HTTP sigue usando READ COMMITTED.
+`POST /api/registrations` conserva el request camelCase y responde `202 { status: "pending", expiresAt }`, sin Ticket ni token. El correo lleva a una confirmación POST explícita; solo entonces se devuelve `200 { registrationId, ticketCode, emailSent }` y se emite el Ticket. El aforo cuenta Registrations y pendientes vigentes, incluidas revocadas. `reserve_for_event` y `confirm_reservation` requieren READ COMMITTED y ejecución service_role; la configuración conserva JWT de usuario, sin service_role. No restaurar el contrato 201 de emisión directa eliminado.

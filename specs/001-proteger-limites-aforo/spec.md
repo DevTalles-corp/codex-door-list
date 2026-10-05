@@ -4,9 +4,9 @@
 
 **Created**: 2026-10-02
 
-**Status**: Draft
+**Status**: Implemented and locally verified (2026-10-05)
 
-**Implementation gate**: BLOCKED por conflictos constitucionales heredados; ver «Estado existente y desviaciones pendientes» y el Constitution Check del plan. Estos ajustes no constituyen una aprobación de implementación.
+**Implementation gate**: Las correcciones previas se implementaron mediante specs 002–005; ver [verificación](../003-reservas-verificadas/verification.md). El prerrequisito T001 y las tareas de aforo están cerrados con evidencia independiente en [quickstart.md](quickstart.md).
 
 **Input**: Impedir que el organizador reduzca el aforo del evento o el cupo de un tipo de entrada por debajo de las entradas ya vendidas, incluso fuera del panel y durante registros simultáneos, sin cambiar las reglas de venta actuales.
 
@@ -94,11 +94,11 @@ Como organizador, quiero que la protección se aplique aunque el límite se camb
 - **FR-005**: La regla debe aplicarse a toda vía que permita modificar estos límites, incluida una vía distinta de la pantalla del panel.
 - **FR-006**: Ante un rechazo por consumo, el organizador debe ver un mensaje en español que identifique el límite afectado y la cantidad de entradas ya vendidas que impide la reducción. Si hay varios límites inválidos en una misma solicitud, debe identificar cada uno con su cifra. Si el rechazo se debe a los cupos asignados, el mensaje debe identificar esa causa y su suma, sin atribuirla a ventas insuficientemente cubiertas.
 - **FR-007**: Partiendo de límites consistentes, los cambios de límite y los registros simultáneos deben resolverse sin que el resultado final supere el aforo ni el cupo estricto vigente. Esta garantía no exige sanear automáticamente inconsistencias anteriores a la activación, tratadas en FR-011.
-- **FR-008**: Las reglas de negocio actuales para vender y registrar entradas, incluidas las que determinan cuándo una entrada ocupa cupo, deben conservarse. La firma, los estados, las fechas, la unicidad por email/evento y la emisión siguen vigentes; la única modificación del contrato técnico de registro es la restricción de aislamiento explícita en FR-012.
+- **FR-008**: Conservar la base corregida de specs 002–005: reserva pendiente de 10 minutos, confirmación por email, una entrada confirmada por email/evento, calendario explícito, publicación con tipo y permisos/auditoría. La RPC antigua de emisión directa ya no existe. Esta feature no altera esa política; protege ediciones frente al consumo conjunto.
 - **FR-009**: Debe conservarse la regla que impide que el aforo sea inferior a la suma de los cupos asignados a sus tipos de entrada. Igualar las ventas no basta para aceptar una reducción si incumple esa suma; en cambios conjuntos se evalúan los valores finales solicitados.
-- **FR-010**: Para los mínimos de aforo y cupo y las cifras de rechazo, se debe contar cada Registration guardada del evento o tipo correspondiente una sola vez, independientemente del estado de su Ticket asociado. Las entradas revocadas siguen contando; su estado no libera cupo para ventas nuevas.
+- **FR-010**: Para los mínimos de aforo y cupo y las cifras de rechazo, se debe contar cada Registration guardada del evento o tipo correspondiente una sola vez, independientemente del estado de su Ticket asociado. Las entradas revocadas siguen contando; su estado no libera cupo para ventas nuevas. Se suman también las reservas pendientes cuyo vencimiento sea posterior al reloj real del intento; al confirmar se sustituye su unidad pendiente por una confirmada, sin doble conteo.
 - **FR-011**: Al activar la protección, deben conservarse los límites, registros y entradas existentes sin aumentos automáticos ni exigir una corrección previa. Al establecer posteriormente cualquier límite, incluso en su valor guardado, ese límite debe cubrir su consumo y cumplir las demás reglas vigentes. Los cambios que no establecen límites no requieren sanear inconsistencias previas.
-- **FR-012**: `register_for_event`, la RPC de configuración (también para patches de solo metadatos) y las escrituras DML que activen las guardas de aforo, cupo o asociación de TicketType deben exigir READ COMMITTED. Otros niveles de aislamiento se rechazan con SQLSTATE `0A000` antes de persistir escrituras propias de la operación. Es un fallo técnico de contrato, distinto de falta de cupo y de contención transitoria; el caller debe iniciar una nueva transacción READ COMMITTED. El endpoint no permite elegir aislamiento y usa READ COMMITTED; si recibe `0A000` por una configuración incorrecta, devuelve 500 con mensaje propio. DML de solo metadatos que no active estas guardas conserva su comportamiento vigente.
+- **FR-012**: `reserve_for_event`, `confirm_reservation`, la RPC de configuración (también para patches de solo metadatos) y las escrituras DML que activen las guardas de aforo, cupo o asociación de TicketType deben exigir READ COMMITTED. Otros niveles de aislamiento se rechazan con SQLSTATE `0A000` antes de persistir escrituras propias de la operación. Es un fallo técnico de contrato, distinto de falta de cupo y de contención transitoria; el caller debe iniciar una nueva transacción READ COMMITTED. El endpoint no permite elegir aislamiento y usa READ COMMITTED; si recibe `0A000` por una configuración incorrecta, devuelve 500 con mensaje propio. DML de solo metadatos que no active estas guardas conserva su comportamiento vigente.
 
 ### Key Entities
 
@@ -119,18 +119,17 @@ Como organizador, quiero que la protección se aplique aunque el límite se camb
 
 ## Assumptions
 
-- “Vendidas” y “ocupan cupo” corresponden a todos los registros guardados, incluso si su entrada está revocada; esta feature conserva ese criterio vigente y no introduce nuevas reglas de cancelación, caducidad ni liberación de cupo.
+- “Vendidas” identifica Registrations confirmadas; “consumo” incluye además reservas pendientes vigentes de spec 003. Los escenarios numéricos existentes preparan Registrations confirmadas salvo que indiquen pendientes. Una pendiente vencida no consume; una Registration revocada sigue consumiendo.
 - Declarar un cupo estricto significa indicar el cupo numérico obligatorio al crear o configurar un TicketType. El campo `maxCapacity` de UI/API corresponde a `ticket_types.max_capacity`; no se necesita un indicador adicional. Todo valor ya almacenado se interpreta como el límite configurado vigente, con independencia de su consumo y del estado de sus Tickets. Esta es la interpretación de compatibilidad de los tipos heredados, no una afirmación de que se auditó quién los creó. No se añaden modos no estrictos ni se cambia qué tipos tienen límite.
 - Las demás reglas existentes para editar límites, publicar eventos y vender entradas siguen vigentes, incluida la obligación de que el aforo cubra la suma de cupos asignados.
 
-## Estado existente y desviaciones pendientes
+## Base corregida y resolución constitucional
 
-Revisión de planificación del 2026-10-02 contra la constitución 1.0.0. Este registro describe la base existente; no amplía los criterios de aceptación de esta feature ni declara resuelta la deuda.
+El usuario autorizó resolver los incumplimientos mediante specs y correcciones verificadas, sin enmendar la constitución. Las specs [002](../002-calendario-por-evento/spec.md), [003](../003-reservas-verificadas/spec.md), [004](../004-publicacion-con-cupo/spec.md) y [005](../005-acceso-y-auditoria/spec.md) sustituyen la base de la revisión del 2026-10-02.
 
-- **Cupos estrictos (definición aclarada)**: `ticket_types.max_capacity` es obligatorio y positivo; `register_for_event` trata todos los tipos actuales como estrictos. Esta spec define la configuración de ese número como declaración del límite y explicita la interpretación de los valores heredados. No existe un modo no estricto; añadirlo requeriría otra spec. Esta aclaración no resuelve el incumplimiento independiente de publicación del principio IV.
-- **Publicación (IV)**: el esquema y el editor permiten publicar sin comprobar que exista un tipo con cupo. Conservar esa conducta no implica que cumpla el requisito constitucional; su corrección queda pendiente en otra spec.
-- **Calendario (II)**: Event no tiene zona propia ni campos explícitos de cierre/ingreso. Las funciones usan `America/La_Paz` y el día de `event_date`. Esta feature no modifica esas reglas.
-- **Identidad y reservas (III)**: la base limita a una Registration por email normalizado/evento mediante índice y RPC, pero no verifica el email del asistente ni implementa caducidad/liberación. FR-008 y FR-010 conservan el conteo actual; no se añaden reservas ni una política nueva de cancelación.
-- **Privacidad, permisos y auditoría (V)**: `get_public_ticket` devuelve nombre/email; puerta usa propiedad del evento, sin rol independiente; el export actual usa los registros operativos filtrados y omite revocadas. Este cambio conserva esas superficies y no usa sus cifras como consumo autoritativo.
+- II: zona IANA propia, cierre y ventana explícitos UTC; edición DST y reloj de ingreso posterior al lock.
+- III: una entrada confirmada por email/evento, token privado de un uso y pendientes de 10 minutos que liberan cupo.
+- IV: cupo configurado declara límite estricto; publicación exige tipo. Reserva respeta aforo global y cupo incluso con consumo heredado inconsistente; activación no modifica límites ni Registrations.
+- V: códigos públicos de 256 bits, Ticket sin PII, staff por evento independiente, auditoría de revocadas y conservación de Tickets emitidos.
 
-La protección de reducciones por consumo es la desviación de aforo que esta spec pretende resolver. Los incumplimientos de II, III, IV (publicación) y V permanecen abiertos y mantienen el gate constitucional en FAIL. Registrarlos o proponer specs futuras no satisface esos MUST. Antes de implementar, se requiere una resolución explícita y revisada: corregir los comportamientos mediante specs/migraciones y volver a evaluar el gate, o tramitar por separado una enmienda constitucional con motivo e impacto. Este ajuste no adopta una enmienda, no concede una excepción y no amplía automáticamente esta feature.
+La evidencia ejecutada está en `verification.md` de cada spec previa. El cambio de aforo incluye RPC conjunta, endpoint, restricciones diferidas y su matriz de aceptación ejecutada. Ver [evidencia de 001](quickstart.md); sus resultados son independientes de los prerrequisitos.

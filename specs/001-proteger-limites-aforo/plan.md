@@ -2,58 +2,17 @@
 
 **Branch**: `001-proteger-limites-aforo` | **Date**: 2026-10-02 | **Spec**: [spec.md](spec.md)
 
-**Input**: `specs/001-proteger-limites-aforo/spec.md`. Diseño incremental sobre Door List existente. Termina en Phase 1, sin implementación ni generación de `tasks.md`.
+**Input**: `specs/001-proteger-limites-aforo/spec.md`. Diseño incremental sobre Door List existente. Plan sincronizado con la base corregida y `tasks.md`; la operación conjunta está implementada; ver evidencia ejecutada en [quickstart.md](quickstart.md).
 
 ## Summary
 
 Proteger los límites solicitados mediante conteos de `registrations`, conservar la suma de cupos asignados y comunicar cada causa con cifras confirmadas. PostgreSQL será la autoridad: guardas de consumo y bloqueo, restricciones diferibles de asignación y una RPC autenticada para cambios conjuntos. Un Route Handler traducirá errores reconocidos a `{ error: string }` con copy español. El panel conservará sus formularios; el mínimo definitivo se resolverá dentro de la transacción.
 
-### Base existente inspeccionada
+### Base corregida (2026-10-05)
 
-Se leyeron las once migraciones, el editor, sus errores y tipos, el registro/API, el dashboard, las rutas de puerta/exportación y las pruebas E2E. La definición efectiva de aforo y registro está en `supabase/migrations/20260905120000_rename_tickets_types_to_ticket_types.sql`, que reemplaza funciones anteriores tras renombrar la tabla.
+Specs 002–005 sustituyen el registro directo por reservas verificadas, añaden calendario propio, guardas de publicación, roles de puerta y auditoría. `capacity_consumption` cuenta Registrations más pendientes vigentes, sin joins a Tickets. La base anterior cubría consumo y asignación mediante validadores inmediatos con DETAIL versionado y locks. El editor ya omite límites no tocados y conserva estados de envío.
 
-- `validate_ticket_type_capacity` (líneas 79–99) bloquea Event y valida suma de cupos, sin consultar ventas. `validate_event_capacity` (101–113) solo compara esa suma.
-- Los triggers de `20260828120000_add_event_capacity_guard.sql` escuchan columnas concretas, incluso cuando se les asigna el mismo valor.
-- `register_for_event` (206–311) bloquea Event y después TicketType; cuenta todos los registros del tipo; conserva unicidad por evento/email y emite Ticket. No compara explícitamente consumo total con aforo: desde datos consistentes, el límite global resulta de cupos estrictos y suma asignada ≤ aforo.
-- `app/organizer.tsx:23` y `:26` guardan Event y TicketType por operaciones independientes. Siempre envían `max_capacity`, incluso al editar nombres; el tipo siempre envía `event_id`.
-- `lib/errors.ts:24` convierte cualquier `23514` en «El aforo del evento no puede ser menor que las entradas ya asignadas.» o «La capacidad asignada no puede superar el aforo del evento.». No comunica cifras ni distingue consumo de asignación.
-- `lib/organizer-dashboard.ts` filtra Tickets `valid`/`used` para métricas y lista; esas cifras no sirven como mínimo porque excluyen revocadas.
-- No existe columna de modo estricto. Configurar el cupo numérico obligatorio declara el límite estricto según la definición de la spec; todos los valores actuales se interpretan como límites configurados. Proteger este comportamiento, sin añadir modos nuevos.
-
-### Criterios ya cumplidos: conservar
-
-| Spec | Evidencia y alcance actual |
-|---|---|
-| FR-001 | Desde configuración consistente: cupos estrictos + suma asignada ≤ aforo limitan ventas globales. No añadir una regla diferente para vender en legacy inconsistente. |
-| FR-008, reglas de negocio | Firma, estados, validaciones, fechas, unicidad evento/email y emisión de `register_for_event`; email/QR vigentes. La compatibilidad de aislamiento cambia bajo FR-012. |
-| FR-009, cambios individuales | Guardas SQL impiden aforo < suma asignada y permiten igualdad. |
-| FR-010, conteo de venta | `count(*)` sobre `registrations`, sin filtrar Tickets. Extender este criterio a ediciones. |
-| US1.2, US1.3, US2.2 | Las reducciones positivas descritas ya se aceptan cuando cubren asignación. Añadir regresiones. |
-| US2.4, persistencia | Rechazo actual de aforo 6→3 con suma 6; mensaje incompleto. |
-| FR-011, activación | Añadir/reemplazar guardas no exige reescribir datos previos. Formalizar esta garantía. |
-
-### Criterios cuyo comportamiento cambia
-
-| Spec | Cambio |
-|---|---|
-| FR-002 / US2.1, US2.3, US2.5 | Mínimo por registros del evento; validar también mismo valor explícito. |
-| FR-003 / US1.1, US1.4, US1.5 | Mínimo por registros del tipo, incluidas revocadas. |
-| FR-006 / SC-003, SC-005 | Sustituir mapeo indiscriminado de `23514` por causa reconocida, límite, nombre y cifras. |
-| FR-007 / US3.2, US3.3 / SC-004 | Serializar ventas y ediciones con Event; resolver inversión de locks de DML directo y snapshots después de la espera. |
-| FR-009, ejecución | Conservar desigualdad; comprobar asignación al final de sentencia por defecto y al final de la RPC conjunta. |
-| FR-011, metadatos | Omitir límites no solicitados. Una intención explícita de establecer el mismo número sigue validándose. |
-| FR-012 / US3.4–US3.5 | Exigir READ COMMITTED en registro, RPC de configuración y DML que active guardas de límites/asociación; rechazar otros aislamientos con `0A000`. Es un cambio técnico de compatibilidad, no una regla de venta conservada. |
-
-### Criterios y superficies nuevos
-
-| Spec | Nuevo diseño |
-|---|---|
-| FR-004 | Petición conjunta Event + un TicketType existente; transacción y rollback completo. |
-| FR-005 / US3.1 | Guardas de consumo en tablas, comprobables mediante DML fuera del panel. |
-| FR-006, múltiples errores | Agregar todas las infracciones de la petición antes de escribir. |
-| FR-010, ediciones | Consumo separado de métricas operativas, sin cambiar sus filtros. |
-| FR-011, legacy | Upgrade sin saneamiento; mismo valor explícito inválido rechazado; metadatos aislados editables. |
-| SC-001, SC-002 | Cobertura numérica de todas las aceptaciones, igualdad, revocadas y asignación; SC-003–005 con copy y órdenes de confirmación forzados. |
+El delta implementado de esta feature es la configuración conjunta: separar consumo inmediato de asignación diferida, RPC autenticada de estado final, PATCH y matriz SQL/API/UI de las tres historias. Conservar todos los datos y la base corregida; no restaurar `register_for_event`.
 
 ## Technical Context
 
@@ -77,18 +36,17 @@ Se leyeron las once migraciones, el editor, sus errores y tipos, el registro/API
 
 ## Constitution Check
 
-*Gate antes de Phase 0 y reevaluación después de Phase 1. Corrección de la revisión del 2026-10-02: estado global FAIL; implementación BLOCKED hasta resolución explícita de los conflictos siguientes.*
+Reevaluación del 2026-10-05 tras las correcciones autorizadas por el usuario. Sin enmienda ni excepción constitucional.
 
-| Principio | Antes | Después |
-|---|---|---|
-| I. Spec y migraciones | PASS: spec y esquema leídos | PASS: FR trazables; nueva migración exclusivamente; ninguna existente modificada. |
-| II. Calendario | FAIL: zona global y ausencia de campos por evento | FAIL: conservar el calendario actual no satisface zona propia ni cierre/ingreso explícitos. |
-| III. Identidad/reservas | FAIL: emails sin verificar sin caducidad | FAIL: FR-008/010 conservan reservas que no caducan ni liberan cupo; política por email pendiente de su spec propia. |
-| IV. Aforo verificable | FAIL: se puede publicar sin tipo con cupo | FAIL: escenarios numéricos y declaración mediante cupo configurado aclarados; publicación sin tipo sigue permitida. |
-| V. Acceso/auditoría | FAIL: PII pública, rol de puerta y exportación | FAIL: conservar esas superficies mantiene los incumplimientos de privacidad, permiso independiente y auditoría de revocadas. |
-| Verificación | Spec contiene criterios | Diseño de pruebas trazable; ejecución pendiente. No demuestra cumplimiento constitucional del producto. |
+| Principio | Base corregida y evidencia |
+|---|---|
+| I | Specs 002–005 y migraciones nuevas; once migraciones originales intactas. |
+| II | Zona propia, cierre/ingreso explícitos y DST; ver spec 002 y verificación. |
+| III | Email confirmado, una entrada/evento y caducidad/liberación; ver spec 003. |
+| IV | Publicación con tipo, cupos declarados, guardas de consumo y aforo global; ver specs 003/004. 001 demuestra sus propios criterios con upgrade, SQL, API, UI y concurrencia. |
+| V | Códigos públicos 256 bits, sin PII, staff separado, revocadas conservadas/exportadas; ver spec 005. |
 
-Registrar deuda no convierte un incumplimiento MUST en PASS. Los conflictos heredados constan en «Estado existente y desviaciones pendientes» de `spec.md` y deben resolverse antes de implementar o aprobar este cambio. La instrucción de conservar reglas de venta impide asumir aquí cambios de caducidad/publicación. T001 verifica como prerrequisito una resolución explícita y revisada: specs y correcciones correspondientes, o una enmienda constitucional separada con motivo e impacto. Ninguna de esas decisiones se adopta en estos ajustes; las tareas de código y pruebas quedan condicionadas a reevaluar el gate sin conflictos abiertos. No se concede una excepción por ser deuda previa.
+T001 se cerró con evidencia de las specs previas. Las tareas de 001 se verifican independientemente; su evidencia y la reevaluación constitucional final están en [quickstart.md](quickstart.md).
 
 ## Diseño de la operación
 
@@ -98,7 +56,7 @@ Registrar deuda no convierte un incumplimiento MUST en PASS. Los conflictos here
 4. Diferir únicamente `events_capacity_assignment_check` y `ticket_types_capacity_assignment_check`; aplicar patches; forzar `IMMEDIATE` antes de éxito. Consumo permanece inmediato. Propagar excepciones para rollback total. Sin bypass de triggers ni aforos temporales.
 5. Separar guardas BEFORE de consumo (`UPDATE OF max_capacity`) de bloqueo de tipo (`INSERT OR UPDATE OF event_id,max_capacity`). No usar diferencia OLD/NEW para decidir consumo. DML directo ya bloqueó el tipo: obtener Event `FOR UPDATE NOWAIT` evita espera circular. Un `55P03` es reintentable por transacción completa, no un rechazo por ventas.
 6. Restricciones de asignación AFTER, `CONSTRAINT TRIGGER`, `DEFERRABLE INITIALLY IMMEDIATE`, dirigidas a columnas de aforo/asociación. Leer filas finales por ID y suma final, no `NEW` histórico; una fila eliminada antes de evaluación se omite. DML normal valida al finalizar sentencia; SQL que difiera esas restricciones valida al commit.
-7. Conservar firma/cuerpo de negocio de `register_for_event`; añadir la guardia técnica de aislamiento especificada en FR-012. `0A000` exige nueva transacción READ COMMITTED, no reintento en la misma ni rechazo por falta de cupo; en el endpoint es 500 propio, distinto de contención 503. Sin nuevo veto global de venta en legacy: desde datos consistentes, cupos estrictos y asignación protegen el aforo global.
+7. Conservar `reserve_for_event` y `confirm_reservation` de spec 003, su consumo conjunto, locks y READ COMMITTED. `0A000` exige nueva transacción READ COMMITTED y es 500 propio en configuración, distinto de contención 503. No restaurar emisión pública directa; la confirmación sustituye pendiente por Registration sin incrementar consumo.
 8. Errores SQL con `DETAIL` JSON reconocido/versionado; normalizar a copy y HTTP propios. Un `23514` sin marcador no permite inferir aforo. El cliente comprueba `response.ok` antes de procesar éxito/error.
 9. Registrar intención de editar límites, incluso si el valor termina igual al original. En creación enviar todo límite requerido. Mantener la vía actual de traslado de tipo cuando cambia su evento, protegida por guardas; el endpoint conjunto no incluye traslados.
 
@@ -142,7 +100,7 @@ tests/
 
 ## Entrega y validación
 
-Phase 0 resuelta en [research.md](research.md). Phase 1: [data-model.md](data-model.md), [contratos](contracts/event-configuration.md) y [quickstart.md](quickstart.md). Implementación posterior: migración/guardas y pruebas SQL, RPC/endpoint, editor/mensajes y guía completa. Los runners nuevos citados son trabajo futuro: no se ejecutaron ni se crearon en este plan.
+Phase 0 resuelta en [research.md](research.md). Phase 1: [data-model.md](data-model.md), [contratos](contracts/event-configuration.md) y [quickstart.md](quickstart.md). Implementados: migraciones/guardas, pruebas SQL, RPC/endpoint, editor/mensajes y runners locales. La ejecución y sus resultados están en [quickstart.md](quickstart.md).
 
 ## Complexity Tracking
 
@@ -152,4 +110,15 @@ Phase 0 resuelta en [research.md](research.md). Phase 1: [data-model.md](data-mo
 | Asignación diferible | Estado final, también al corregir legacy | Orden de updates no resuelve todos los legacy; staging añade escrituras y límites de integer. |
 | Endpoint autenticado | camelCase y errores `{ error: string }` | Errores PostgREST crudos no cumplen contrato del producto. |
 
-No se conceden excepciones constitucionales. La deuda heredada registrada en la spec mantiene el gate en FAIL y la implementación bloqueada hasta su resolución revisada.
+Sin excepciones constitucionales. Las correcciones previas tienen evidencia independiente; la entrega de aforo conjunto tiene evidencia independiente en quickstart.
+
+## Instalación histórica de prueba
+
+La fixture versionada `20261005095000_capacity_legacy_fixture.sql` se aplica exclusivamente en un proyecto aislado después de las once migraciones originales y antes de 002–005. Importa los tres estados históricos exigidos retirando y restaurando dentro de esa migración las guardas originales de asignación; nunca deshabilita las guardas nuevas ni modifica migraciones de producto. Luego se aplican 002–005, se captura el snapshot completo y se aplica 001. Este orden permite reproducir aforo 2/VIP 3 y aforo 3/VIP 10 sin fabricar estados inválidos bajo la protección nueva.
+
+## Ajustes verificados de implementación (2026-10-05)
+
+- `20261005150000_protect_capacity_limits.sql` conserva consumo inmediato, añade asignación diferible y RPC invoker. El helper autorizado `configuration_capacity_consumption` cuenta pendientes privadas sin dar acceso a reservas o tokens.
+- La primera ejecución SQL detectó que RLS ocultaba el Event ajeno en `SELECT FOR UPDATE`, produciendo 404 para un recurso visible. La corrección está en otra migración, `20261005151000_authorize_configuration_before_lock.sql`: comprobar visibilidad/propiedad antes de bloquear y repetir la comprobación después del lock. La migración ya aplicada no se reescribió.
+- El editor omite fechas no tocadas además de límites no tocados, conservando los instantes históricos completos. Cambiar zona sin tocar fechas conserva UTC.
+- Los tests de contención HTTP usan simulación declarada; las carreras SQL fuerzan locks reales, ambas órdenes y lectura final independiente.

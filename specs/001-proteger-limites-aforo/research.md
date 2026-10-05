@@ -2,7 +2,7 @@
 
 **Date**: 2026-10-02 | **Spec**: [spec.md](spec.md) | **Plan**: [plan.md](plan.md)
 
-Investigación sobre archivos locales, documentación actual de Context7 y fuentes primarias PostgreSQL/PostgREST. Se despachó un agente de investigación de solo lectura para contrastar concurrencia, legacy y atomicidad. No se ejecutaron consultas contra una base remota ni cambios de esquema. Las decisiones técnicas están documentadas; la resolución del gate constitucional sigue pendiente y la ejecución se validará después de autorizar implementación conforme a ese gate.
+Investigación sobre archivos locales, documentación actual de Context7 y fuentes primarias PostgreSQL/PostgREST. Se despachó un agente de investigación de solo lectura para contrastar concurrencia, legacy y atomicidad. No se ejecutaron consultas contra una base remota ni cambios de esquema. Las decisiones técnicas están documentadas; la revisión original fue ampliada el 2026-10-05 con specs 002–005 y su evidencia ejecutada.
 
 ## 1. Aprovechar la aplicación existente
 
@@ -16,11 +16,11 @@ Investigación sobre archivos locales, documentación actual de Context7 y fuent
 
 ## 2. Consumo y vocabulario
 
-**Decision**: Contar `registrations` directamente con `count(*)`, por `event_id` o `ticket_type_id`, sin join/filtro por Tickets. Mantener cuatro entidades y todos los cupos estrictos actualmente configurados.
+**Decision**: Contar `registrations` directamente con `count(*)`, por `event_id` o `ticket_type_id`, sin join/filtro por Tickets. Sumar pendientes vigentes de spec 003. Mantener el significado de las cuatro entidades y todos los cupos estrictos configurados.
 
 **Declaration semantics**: Según la spec aclarada, el organizador declara el límite estricto al configurar el cupo numérico obligatorio. `maxCapacity` se persiste en `ticket_types.max_capacity`; los valores heredados se interpretan como límites configurados, sin afirmar que existe una auditoría de su autoría. No se añade indicador de modo ni se infiere estrictez del consumo o estado de Ticket. US1.6 comprueba tipos nuevos y existentes.
 
-**Rationale**: La definición efectiva de `register_for_event` en la migración de renombrado cuenta registros guardados del tipo. Revocar/utilizar un Ticket no elimina Registration. `lib/organizer-dashboard.ts` filtra revocadas y no puede proporcionar el mínimo. Los índices por evento/email y tipo ya sirven para los conteos. Aforo global está garantizado desde datos consistentes por cupos estrictos + suma asignada ≤ aforo; no añadir una regla de venta global nueva para legacy.
+**Rationale**: `capacity_consumption` de la migración 20261005110000 suma Registrations y pendientes vigentes; revocar/utilizar un Ticket no elimina Registration. Las métricas operativas no sirven como mínimo. La migración 20261005140000 protege explícitamente el aforo global de nuevas reservas incluso con consumo heredado inconsistente. No se modifica ni sanea ese pasado.
 
 **Alternatives considered**: Contar solo Tickets activos; usar cifras del dashboard; mantener contadores nuevos; crear modo de cupo. Cambian FR-008/010 o añaden estado sincronizado innecesario.
 
@@ -38,7 +38,7 @@ Investigación sobre archivos locales, documentación actual de Context7 y fuent
 
 **Decision**: Usar Event como exclusión por evento. RPC y registro toman Event antes de TicketType. Guardas de tipo que llegan desde DML directo obtienen Event con `NOWAIT`; contención aborta la transacción, que puede reintentarse completa. Conteos después del lock en consultas separadas y funciones `VOLATILE`; exigir `READ COMMITTED` en registro y escritura de límites.
 
-**Rationale**: UPDATE directo bloquea primero TicketType y su BEFORE trigger intenta Event: el orden actual se invierte respecto del registro y puede formar un deadlock. `NOWAIT` evita la espera circular sin fingir que un trigger reordena locks ya adquiridos. Consultar conteo en la misma sentencia que espera por lock puede usar snapshot anterior; separar consultas en funciones VOLATILE permite el snapshot actualizado bajo READ COMMITTED. FR-012 documenta el cambio de compatibilidad: otros aislamientos se rechazan con `0A000` antes de persistir escrituras propias de la operación, también para patches de solo metadatos por RPC; DML aislado de metadatos que no active guardas no cambia. No se interpreta como falta de cupo ni contención; exige nueva transacción READ COMMITTED. La firma/estados y reglas de negocio del registro siguen iguales. US3.4–US3.5 contrastan funcionamiento ordinario y rechazos técnicos.
+**Rationale**: UPDATE directo bloquea primero TicketType y su BEFORE trigger intenta Event: el orden actual se invierte respecto del registro y puede formar un deadlock. `NOWAIT` evita la espera circular sin fingir que un trigger reordena locks ya adquiridos. Consultar conteo en la misma sentencia que espera por lock puede usar snapshot anterior; separar consultas en funciones VOLATILE permite el snapshot actualizado bajo READ COMMITTED. FR-012 documenta el cambio de compatibilidad: otros aislamientos se rechazan con `0A000` antes de persistir escrituras propias de la operación, también para patches de solo metadatos por RPC; DML aislado de metadatos que no active guardas no cambia. No se interpreta como falta de cupo ni contención; exige nueva transacción READ COMMITTED. Se conservan las RPC y reglas de reservas verificadas de spec 003. US3.4–US3.5 contrastan funcionamiento ordinario y rechazos técnicos.
 
 **Alternatives considered**: Confiar solo en detección de deadlocks; contar antes del lock; marcar validadores STABLE; prometer seguridad bajo cualquier aislamiento sin versionado adicional. Un token/version nuevo o serialización con reintentos también sería viable, pero añade escrituras y modifica más la operación vigente.
 
@@ -58,13 +58,13 @@ Investigación sobre archivos locales, documentación actual de Context7 y fuent
 
 **Decision**: Migración nueva sin backfill ni validación masiva de filas previas. Presencia de `maxCapacity` en request significa establecer el límite, incluso si coincide con el almacenado. El editor registra intención/touched del control, no solo comparación de números. Ediciones de metadatos omiten límite y asociación no solicitados.
 
-**Rationale**: FR-011 conserva datos al activar y exige validación de toda nueva solicitud explícita. `UPDATE OF` ya se activa con mismo valor; añadir `OLD IS DISTINCT FROM NEW` ocultaría esas solicitudes. El panel actual siempre envía límites y requiere ajustar el payload para no impedir cambios ajenos a aforo en legacy.
+**Rationale**: FR-011 conserva datos al activar y exige validación de toda nueva solicitud explícita. `UPDATE OF` ya se activa con mismo valor; añadir `OLD IS DISTINCT FROM NEW` ocultaría esas solicitudes. La base anterior siempre enviaba límites; el editor corregido ya omite límites no tocados y la integración PATCH debe conservar ese comportamiento para no impedir cambios ajenos a aforo en legacy.
 
 **Alternatives considered**: Sanear con aumentos automáticos; imponer corrección de cualquier límite al editar título; validar solo si número cambia. Contradicen FR-011.
 
 ## 7. Validación y límites del plan
 
-**Decision**: pgTAP para reglas, permisos y errores; dos sesiones psql con barreras explícitas para concurrencia; upgrade de copia local anterior; Playwright para feedback y regresión del flujo existente. Runners aún por implementar; no afirmar pruebas pasadas en esta fase.
+**Decision**: pgTAP para reglas, permisos y errores; dos sesiones psql con barreras explícitas para concurrencia; upgrade de copia local anterior; Playwright para feedback y regresión del flujo existente. Runners implementados y ejecutados; ver [evidencia](quickstart.md).
 
 **Rationale**: Dos promesas HTTP simultáneas no demuestran ambos órdenes. Hay que retener locks, confirmar/abortar y comprobar estado final. Legacy debe cargarse antes de activar la migración, conservando fixtures y sin deshabilitar guardas nuevas para simularlo. Supabase CLI soporta migraciones versionadas y pruebas pgTAP.
 
@@ -72,4 +72,4 @@ Investigación sobre archivos locales, documentación actual de Context7 y fuent
 
 **Sources**: [Supabase: Database Migrations](https://supabase.com/docs/guides/deployment/database-migrations), [Database Testing](https://supabase.com/docs/guides/local-development/testing/overview).
 
-Las desviaciones constitucionales heredadas están registradas en la spec y mantienen el gate en FAIL. Contratos y modelo describen el diseño propuesto, no una aprobación. Resolver los conflictos mediante correcciones revisadas o una enmienda constitucional separada es prerrequisito de implementación; no se adopta aquí ninguna excepción.
+Las correcciones previas de specs 002–005 resuelven los conflictos II/III/IV-publicación/V mediante evidencia local; no hay enmienda ni excepción. La operación conjunta y su matriz tienen evidencia propia en [quickstart.md](quickstart.md).

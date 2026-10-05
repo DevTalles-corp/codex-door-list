@@ -9,8 +9,8 @@ Resultado JSON `{ eventId, ticketTypeId }`; errores por excepción, nunca `{ err
 ### Protocolo de transacción
 
 1. Validar shape/valores y aislamiento `READ COMMITTED`.
-2. Bloquear Event `FOR UPDATE`, comprobar propiedad; después bloquear el tipo solicitado y comprobar pertenencia. Un Event por llamada.
-3. En consultas posteriores al bloqueo, contar Registrations por evento/tipo y calcular suma final de cupos con bigint.
+2. Leer Event visible y comprobar propiedad antes del lock; bloquear Event `FOR UPDATE` y volver a comprobar propiedad; después bloquear el tipo solicitado y comprobar pertenencia. Un Event por llamada.
+3. En consultas posteriores al bloqueo, contar Registrations más pendientes vigentes por evento/tipo y calcular suma final de cupos con bigint. La RPC invoker usa `configuration_capacity_consumption`, helper SECURITY DEFINER que exige Auth y propiedad del Event antes de leer las reservas privadas; solo authenticated tiene ejecución. No se concede lectura de tokens/reservas ni conteos de otros owners.
 4. Agregar infracciones de cada límite solicitado, más asignación final cuando la petición afecta límites. Si falta un límite en el patch, no exigir saneamiento de su consumo legacy.
 5. Si hay infracciones, lanzar excepción antes de escribir. Si no, diferir solamente `events_capacity_assignment_check` y `ticket_types_capacity_assignment_check`, aplicar campos presentes, forzar esas restricciones a IMMEDIATE y devolver éxito.
 6. Cualquier error revierte toda la RPC: límites y metadatos. No capturar error para devolver éxito ni continuar tras una escritura fallida.
@@ -35,13 +35,13 @@ DML independiente valida consumo inmediatamente y asignación al fin de sentenci
 
 ## Registro y concurrencia
 
-`register_for_event(uuid,uuid,text,text)` conserva firma `(status, registration_id, ticket_code)`, estados, cuenta por tipo, unicidad y emisión. En nueva migración añadir la guardia de aislamiento especificada en FR-012; no alterar cuerpo de negocio. Usa Event→TicketType y mantiene ambos locks hasta fin de transacción.
+`reserve_for_event(uuid,uuid,text,text,text)` devuelve estado/reservation_id/expires_at y `confirm_reservation(text)` devuelve estado/registration_id/ticket_code. Ambas RPC privadas a service_role provienen de spec 003; usan Event→TicketType/Reservation, cuentan confirmadas más pendientes y ya exigen READ COMMITTED. No restaurar `register_for_event` ni modificar su política desde la configuración.
 
 Desde datos consistentes, ventas y edición válidas se serializan: venta primero incrementa conteo visto por la edición; edición primero cambia cupo visto por registro. Nunca contar en la misma consulta que puede esperar por Event. Functions de escritura/conteo son VOLATILE.
 
 DML directo de tipo ya sostiene lock del tipo y no puede reordenarlo. NOWAIT sobre Event evita círculo; `55P03` aborta y requiere reintentar la transacción completa. No prometer ausencia total de errores técnicos en transacciones externas arbitrarias ni convertirlos en «vendidas».
 
-**Contrato de aislamiento (FR-012, US3.4–US3.5)**: READ COMMITTED es obligatorio para `register_for_event`, toda `update_event_configuration` (incluidos patches de solo metadatos) y DML que active guardas de aforo, cupo o asociación de TicketType. Otros aislamientos se rechazan con `0A000` antes de persistir escrituras propias de la operación, conservando sus límites, Registrations y Tickets. DML de solo metadatos que no active guardas mantiene comportamiento vigente. Este rechazo modifica la compatibilidad técnica de callers SQL; no es falta de cupo ni contención transitoria y requiere una nueva transacción READ COMMITTED. Los flujos HTTP ordinarios usan READ COMMITTED; si el endpoint recibe `0A000`, devuelve 500 propio y no lo normaliza como 503 reintentable por contención.
+**Contrato de aislamiento (FR-012, US3.4–US3.5)**: READ COMMITTED es obligatorio para `reserve_for_event` / `confirm_reservation`, toda `update_event_configuration` (incluidos patches de solo metadatos) y DML que active guardas de aforo, cupo o asociación de TicketType. Otros aislamientos se rechazan con `0A000` antes de persistir escrituras propias de la operación, conservando sus límites, Registrations y Tickets. DML de solo metadatos que no active guardas mantiene comportamiento vigente. Este rechazo modifica la compatibilidad técnica de callers SQL; no es falta de cupo ni contención transitoria y requiere una nueva transacción READ COMMITTED. Los flujos HTTP ordinarios usan READ COMMITTED; si el endpoint recibe `0A000`, devuelve 500 propio y no lo normaliza como 503 reintentable por contención.
 
 ## Error interno de capacidad
 

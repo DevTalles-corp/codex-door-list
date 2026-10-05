@@ -2,39 +2,41 @@
 
 **Spec**: [spec.md](spec.md) | **Modelo**: [data-model.md](data-model.md) | **Contratos**: [API](contracts/event-configuration.md), [PostgreSQL](contracts/database-capacity.md)
 
-Esta guía se ejecutará después de implementar el plan. Las pruebas/runners nuevos que se nombran abajo aún no existen; no representan validaciones realizadas durante planificación. Los comandos de Supabase se contrastaron con documentación actual y ayuda de CLI instalado 2.116.0.
+Guía ejecutable de la implementación. Los runners crean proyectos locales aislados y no aplican migraciones remotas. Los comandos se contrastaron con documentación y ayuda de Supabase CLI 2.116.0.
 
-**Gate previo**: el Constitution Check de [plan.md](plan.md) permanece FAIL por conflictos heredados; implementación BLOCKED hasta la resolución explícita y revisada exigida por T001. Esta guía prepara comprobaciones futuras y no autoriza empezar código o aplicar migraciones mientras ese gate siga abierto.
+**Gate previo**: T001 resuelto por specs 002–005. Ver sus `verification.md`: upgrade, 61 casos SQL, concurrencia y 4 pruebas Playwright. La operación conjunta tiene su propia evidencia abajo; no hereda resultados de los prerrequisitos.
 
-## Prerrequisitos y preparación
+## Prerrequisitos y comandos
 
-- Dependencias del proyecto instaladas con el lockfile (`npm ci` si hace falta).
-- Docker, Supabase CLI y `psql` disponibles. Base de pruebas PostgreSQL 17 local y desechable.
-- `.env.local` configurado conforme `.env.example` para uso manual. Pruebas E2E usan variables locales obtenidas por su runner y Resend simulado, como ya documenta `README.md`.
-- La nueva migración y los artefactos de pruebas previstos deben estar implementados. No usar proyecto remoto para fixtures ni modificar migraciones históricas.
+- Dependencias instaladas conforme `package-lock.json` (`npm ci` si hace falta).
+- Docker activo, Supabase CLI y Chromium de Playwright instalado (`npx playwright install chromium`). Las sesiones psql se ejecutan dentro del contenedor PostgreSQL 17; no requieren psql en el host.
+- Puertos `555xx`, `3100` y `3101` libres. Ejecutar los runners de aforo en secuencia.
+- El runner obtiene claves locales de manera privada y simula Resend. No requiere claves remotas ni envía emails reales. `.env.local` sirve para uso manual, conforme `.env.example`.
 
-Desde raíz del repositorio:
-
-```bash
-supabase start
-supabase migration up --local
-npx playwright install chromium
-```
-
-`migration up --local` aplica solo migraciones pendientes al local. El runner de upgrade usa otra instalación local aislada anterior a la protección; no rebobina la base de desarrollo ni borra su historial. Todo DDL, incluido cualquier fixture de esquema necesario en ese proyecto aislado, se introduce por una migración de pruebas versionada nueva, nunca SQL suelto ni edición del historial de producción.
-
-## Comprobaciones automáticas previstas
+Desde la raíz:
 
 ```bash
 npm run lint
 npm run build
-supabase test db --local supabase/tests/capacity_limits.test.sql
+node tests/db/run-capacity-verification.mjs
 node tests/db/run-capacity-concurrency.mjs
-node tests/db/run-capacity-upgrade.mjs
-npm run test:e2e -- capacity-limits.spec.ts registration-to-check-in.spec.ts
 ```
 
-Los runners DB deben aceptar únicamente conexión PostgreSQL local, obtener configuración sin imprimir secretos y limpiar sus fixtures. El de concurrencia necesita dos sesiones independientes con barreras explícitas y timeout de fallo, sin sleeps arbitrarios. El runner E2E existente valida URL local y simula Resend; no envía mensajes reales. Cada prueba debe informar escenario, orden efectivo y estado final.
+`run-capacity-verification.mjs` instala el historial anterior con fixtures versionadas, aplica las dos migraciones de 001, comprueba upgrade US1/US2/US3, ejecuta ambas suites pgTAP y después `npm run test:e2e -- capacity-limits.spec.ts registration-to-check-in.spec.ts` con variables privadas de ese proyecto. Cada runner detiene únicamente su instalación en `finally`; los logs privados de fallos quedan en su directorio temporal, sin imprimir claves.
+
+Selección de historia o contrato:
+
+```bash
+node tests/db/run-capacity-upgrade.mjs --story US1
+node tests/db/run-capacity-upgrade.mjs --story US2
+node tests/db/run-capacity-upgrade.mjs --story US3
+node tests/db/run-capacity-verification.mjs --grep 'US1|US2'
+node tests/db/run-capacity-verification.mjs --grep 'US3 API'
+```
+
+`run-capacity-upgrade.mjs` sin `--story` ejecuta las tres. `--grep` filtra Playwright; upgrade y las 111 comprobaciones SQL siguen ejecutándose completos. El runner de concurrencia usa sesiones independientes y espera observable en `pg_stat_activity`, con timeout de fallo y lectura final desde una tercera conexión. Los errores técnicos simulados en pruebas UI/mapper no representan bloqueos reales; estos se prueban por separado en PostgreSQL.
+
+Todo DDL se introduce mediante migraciones versionadas, también las fixtures históricas. No rebobinar desarrollo ni ejecutar fixtures contra un proyecto remoto.
 
 ## Escenarios numéricos
 
@@ -57,7 +59,7 @@ En pgTAP verificar también límites positivos/invalid_input, igualdad, asignaci
 
 ## Activación sobre datos anteriores
 
-El runner de upgrade prepara instalación local aislada con historial anterior, guarda snapshot de límites, Registrations y Tickets, carga fixtures legacy antes de activar y aplica únicamente la migración nueva. La fixture de aforo inferior a suma no se puede crear por las vías normales antiguas: usar una migración fixture versionada solo en el proyecto de pruebas para representar una importación previa, nunca deshabilitar guardas nuevas para fabricar el resultado.
+El runner de upgrade prepara instalación local aislada con historial anterior, guarda snapshot de límites, Registrations y Tickets, carga fixtures legacy antes de activar y aplica las migraciones nuevas de 001 (`150000` y `151000`). La fixture de aforo inferior a suma no se puede crear por las vías normales antiguas: usar una migración fixture versionada solo en el proyecto de pruebas para representar una importación previa, nunca deshabilitar guardas nuevas para fabricar el resultado.
 
 - **US1.5**: aforo 4, VIP cupo 1 y consumo 2. Activación conserva todo; establecer VIP 1 falla, establecer 2 acepta.
 - **US2.5**: aforo 2, VIP cupo 3 y consumo 3. Activación conserva todo; establecer aforo 2 falla, establecer 3 acepta.
@@ -96,4 +98,76 @@ En `/organizador`, revisar cada rechazo numérico, copia española, input preser
 
 La prueba E2E anterior de publicar→registrar→email→QR→check-in debe seguir pasando. No cambiar filtro operativo de revocadas, listado público, unicidad por evento/email, reglas de fecha ni envío de email. El nuevo endpoint conjunto no exige añadir una pantalla nueva.
 
-**Cierre**: SC-001/002 por matriz completa y upgrade; SC-003/005 por mensajes con causas/cifras en una lectura; SC-004 por ambos órdenes forzados; FR-012 por contrato de aislamiento y snapshots. Registrar resultados reales durante implementación y reevaluar la resolución constitucional de T001 antes de dar el cambio por completo; este plan solo prepara su validación.
+**Cierre**: SC-001/002 por matriz completa y upgrade; SC-003/005 por mensajes con causas/cifras en una lectura; SC-004 por ambos órdenes forzados; FR-012 por contrato de aislamiento y snapshots. Registrar resultados reales durante implementación y reevaluar la resolución constitucional de T001 antes de dar el cambio por completo; la evidencia ejecutada se registra a continuación.
+
+## Evidencia de correcciones previas (2026-10-05)
+
+`node tests/db/run-constitutional.mjs` ejecuta solo las correcciones 002–005: proyecto temporal local, upgrade, pgTAP, carreras y correo simulado. `npm run lint` y `npm run build` pasan. Ver [reservas](../003-reservas-verificadas/verification.md) para resultados y alcance. Ese resultado solo demuestra los prerrequisitos; la evidencia independiente de 001 sigue abajo.
+
+### US1 — ejecución 2026-10-05
+
+`node tests/db/run-capacity-upgrade.mjs --story US1`: PASS, snapshot completo conservado; límite 1 explícito rechazado, metadatos y 2 aceptados. `node tests/db/run-capacity-verification.mjs --grep US1`: PASS, 111 comprobaciones SQL (50 de aforo y 61 de correcciones previas) y 2 pruebas de navegador. Bloqueo durante envío, inputs preservados, revocadas, unicidad de cupo y contratos touched/omitidos verificados.
+
+### US2 — ejecución 2026-10-05
+
+`node tests/db/run-capacity-verification.mjs --grep 'US1|US2'`: PASS, 111 comprobaciones SQL y 3 pruebas de navegador. Aforo 4→2 rechazado con mínimo 3; 4→3 aceptado. Aforo 6→3 rechazado por suma asignada 6 con consumo 3. Upgrade US2 preserva aforo 2/VIP 3/consumo 3 y admite título sin límite o aforo 3. US1 permanece operativo tras el cambio del editor compartido.
+
+### US3 y cierre — ejecución 2026-10-05
+
+| Comando realmente ejecutado | Resultado |
+|---|---|
+| `node tests/db/run-capacity-verification.mjs --grep 'US3 API'` | PASS: upgrade US1/US2/US3, 111 SQL y 3 pruebas de contrato/reintento. |
+| `node tests/db/run-capacity-verification.mjs` | PASS: snapshots de upgrade completos, 50 pruebas de aforo + 61 de correcciones previas y 7 pruebas Playwright. |
+| `node tests/db/run-capacity-concurrency.mjs` | PASS: ambos órdenes de US3.2/US3.3, DML inverso, venta/venta, tipos simultáneos, eventos independientes, aislamientos y rollback al commit. |
+| `npm run lint` | PASS. |
+| `npm run build` | PASS: Next.js 16.3.3, tipos y rutas compiladas. |
+| `git diff --check` | PASS. |
+
+Los escenarios de upgrade US2/US3 se ejecutaron por la función compartida del runner de verificación; las opciones individuales `--story US2/US3` están disponibles, pero no se contabilizan como invocaciones separadas realizadas. La primera suite SQL detectó una diferencia de permisos (404 frente a 403 en recurso ajeno visible); la migración adicional `20261005151000_authorize_configuration_before_lock.sql` la corrigió y la suite posterior pasó. No se reescribió `150000` después de aplicarla.
+
+#### Estados finales observados desde conexión independiente
+
+| Carrera | Aforo / cupo VIP / consumo total / consumo VIP / Tickets |
+|---|---|
+| US3.2, venta primero | 4 / 3 / 3 / 2 / 3; edición y sus metadatos rechazados íntegramente. |
+| US3.2, edición primero | 2 / 1 / 2 / 1 / 2; venta rechazada. |
+| US3.3, venta primero | 4 / 3 / 2 / 2 / 2; reducción rechazada. |
+| US3.3, edición primero | 4 / 1 / 1 / 1 / 1; venta rechazada. |
+| DML tipo con orden inverso de locks | `55P03` aborta; venta confirma. Nueva transacción ve consumo 2: cupo 1 rechaza y 2 acepta. |
+| Venta/venta, una plaza | Exactamente una Registration y un Ticket. |
+| Ediciones de tipos simultáneas | Suma final 4 con aforo 4; solicitud de suma 5 rechazada. |
+| Eventos distintos | Segunda edición confirma mientras el lock del primer Event permanece abierto. |
+| REPEATABLE READ y SERIALIZABLE | Cada reserva/confirmación/RPC/límite/asociación rechaza `0A000` y conserva snapshot completo; nueva READ COMMITTED confirma segunda VIP y acepta cupo 2. |
+| Asignación diferida inválida al COMMIT | `23514`; rollback completo de límites, metadatos y filas. |
+
+La UI conserva input 1 tras un 503 simulado, luego muestra mínimo 2 del backend real; una Registration nueva hace que el siguiente reintento muestre mínimo 3. HTTP real cubre 400/401/403/404/409/200. Los estados técnicos 503/500 y DETAIL desconocido se verifican en el mapper y el contrato UI; no se atribuyen a bloqueos HTTP reales.
+
+#### Editor y accesibilidad
+
+- Playwright ejecutó el recorrido con `reducedMotion: reduce`, Tab desde capacidad al botón y Enter para guardar; verificó foco en el resumen de error, controles bloqueados durante envío y éxito `role="status"`.
+- Inspección visual de capturas a 1280 px y 390 px: mensajes VIP/mínimo 3/revocadas y mensaje múltiple aforo mínimo 3 + suma asignada 6 visibles y completos, sin desbordamiento. Los inputs rechazados conservan 2.
+- El editor usa `role="alert"`, foco programático del resumen y estilos de foco existentes; scroll `auto` con movimiento reducido. No se añadieron valores visuales arbitrarios. La página `/organizador` sigue siendo Server Component.
+- Capturas reproducibles bajo `test-results/`: `capacity-error-desktop.png`, `capacity-error-mobile.png` y `multiple-capacity-errors-mobile.png`. Se regeneran al ejecutar la suite.
+- No se ejecutó lector de pantalla ni cámara física. Cámara y correo se simulan en la regresión; el resultado no prueba entrega de Resend real.
+
+#### Trazabilidad final y constitución
+
+| Requisito | Evidencia |
+|---|---|
+| FR-001–003 | Matrices pgTAP y US1/US2: límites mínimos, igualdad, cero consumo y límite estricto. |
+| FR-004 | SQL/API conjunta: todas las infracciones y rollback de límites/metadatos; upgrade 5/5. |
+| FR-005 | Guardas de DML owner independientes del panel y RPC, con RLS/grants probados. |
+| FR-006 | Decoder estricto y mensajes propios con cada cifra; API de tres causas y captura móvil de dos causas. |
+| FR-007 | Ambos órdenes deterministas, venta/venta y edición simultánea; lectura final independiente. |
+| FR-008 | 61 regresiones SQL y publicar→reservar→confirmar por email→Ticket/QR→check-in/repetición. Las funciones de venta, unicidad y permisos previos se conservan. |
+| FR-009 | Asignación final bigint, igualdad y rechazo 6→3; restricciones diferibles evalúan estado final y commit inválido falla. |
+| FR-010 | Registros sin join a Tickets; valid/used/revoked cuentan 3; pendiente + confirmada cuentan 2 sin duplicación. |
+| FR-011 | Snapshot completo antes/después de activación en las tres fixtures legacy; metadatos omitidos aceptados y mismo límite explícito rechazado. |
+| FR-012 | Dos aislamientos rechazados por operación, snapshots intactos y nueva READ COMMITTED aceptada. |
+| SC-001/002 | Todos los escenarios numéricos SQL, upgrade y UI pasan; igualdad 3 permitida y 2 rechazada; asignación 6 diferenciada. |
+| SC-003/005 | Copy español identifica límite, causa y mínimo en un resumen; cifras nuevas en reintentos y revisión visual móvil. |
+| SC-004 | Todas las carreras con estados iniciales consistentes terminan dentro de aforo y cupo. |
+
+Reevaluación constitucional I–V: spec previa a implementación, dos migraciones nuevas versionadas; las once migraciones originales no tienen diff y las cinco de 002–005 permanecen intactas. La constitución 1.0.0 no se modificó. No hay backfill, tablas/columnas/contadores nuevos, cambios de RLS ni acceso público a reservas/tokens. La RPC invoker usa JWT del owner; el helper definer autoriza propiedad antes de contar pendientes. Calendario UTC/zona propia, reservas/caducidad, publicación con tipo y acceso/auditoría conservan sus correcciones verificadas. No queda conflicto MUST identificado en la revisión final.
+
+Las 37 tareas están implementadas y verificadas. `checklists/requirements.md` conserva sus 16 checks originales (solo lectura). `.specify/extensions.yml` no existe: no hay hooks posteriores registrados. Verificación exclusivamente local; no se desplegó ni aplicó migración remota.
