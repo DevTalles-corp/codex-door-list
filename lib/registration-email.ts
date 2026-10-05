@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { Resend } from "resend";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatEventDate } from "@/lib/dates";
 import type { RegistrationTicket } from "@/lib/types";
 
@@ -30,7 +31,7 @@ export async function sendRegistrationEmail({
     throw new Error("Missing Resend configuration");
   }
 
-  const eventDate = formatEventDate(ticket.event.event_date);
+  const eventDate = formatEventDate(ticket.event.event_date, ticket.event.time_zone);
   const contentId = `ticket-qr-${registrationId}`;
   const qrPng = await QRCode.toBuffer(ticket.code, {
     type: "png",
@@ -125,4 +126,21 @@ export async function sendRegistrationEmail({
   if (error) {
     throw new Error(`Resend rejected the email: ${error.message}`);
   }
+}
+
+export async function loadRegistrationTicket(supabase: SupabaseClient, registrationId: string, code: string): Promise<RegistrationTicket> {
+  const { data: registration, error: registrationError } = await supabase.from("registrations")
+    .select("event_id,ticket_type_id,attendee_name,attendee_email").eq("id", registrationId).single();
+  if (registrationError || !registration) throw new Error("Registration unavailable");
+  const [eventResult, typeResult] = await Promise.all([
+    supabase.from("events").select("title,event_date,venue,time_zone").eq("id", registration.event_id).single(),
+    supabase.from("ticket_types").select("name").eq("id", registration.ticket_type_id).single(),
+  ]);
+  if (eventResult.error || typeResult.error || !eventResult.data || !typeResult.data) throw new Error("Ticket details unavailable");
+  return {
+    code,
+    attendee: { name: registration.attendee_name, email: registration.attendee_email },
+    event: eventResult.data,
+    ticket_type: typeResult.data,
+  };
 }
