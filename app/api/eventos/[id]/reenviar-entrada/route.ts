@@ -75,6 +75,7 @@ export async function POST(
       title: dashboard.event.title,
       event_date: dashboard.event.eventDate,
       venue: dashboard.event.venue,
+      time_zone: dashboard.event.timeZone,
     },
     ticket_type: { name: registration.ticketType.name },
   };

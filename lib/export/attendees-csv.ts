@@ -1,4 +1,4 @@
-import { formatOrganizerEventDate, toLaPazDateKey } from "@/lib/dates";
+import { formatOrganizerEventDate, toEventDateKey } from "@/lib/dates";
 import type { OrganizerRegistration, TicketStatus } from "@/lib/types";
 
 const attendeesHeaders = [
@@ -16,7 +16,8 @@ const ticketStatusLabels: Record<Exclude<TicketStatus, "revoked">, string> = {
 };
 
 export function escapeCsvField(value: string) {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+  const safeValue = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(safeValue) ? `"${safeValue.replaceAll('"', '""')}"` : safeValue;
 }
 
 function slugifyEventTitle(title: string) {
@@ -30,13 +31,14 @@ function slugifyEventTitle(title: string) {
   return slug || "evento";
 }
 
-export function getAttendeesCsvFileName(eventTitle: string, date = new Date()) {
-  return `asistentes-${slugifyEventTitle(eventTitle)}-${toLaPazDateKey(date)}.csv`;
+export function getAttendeesCsvFileName(eventTitle: string, timeZone: string, date = new Date()) {
+  return `asistentes-${slugifyEventTitle(eventTitle)}-${toEventDateKey(date, timeZone)}.csv`;
 }
 
 export function buildAttendeesCsv(
   eventTitle: string,
   registrations: OrganizerRegistration[],
+  timeZone: string,
   date = new Date(),
 ) {
   const rows = registrations.map((registration) => [
@@ -44,12 +46,12 @@ export function buildAttendeesCsv(
     registration.attendeeEmail,
     registration.ticketType.name,
     registration.ticket.code,
-    formatOrganizerEventDate(registration.registeredAt),
+    formatOrganizerEventDate(registration.registeredAt, timeZone),
     ticketStatusLabels[registration.ticket.status],
   ]);
   const content = `\uFEFF${[attendeesHeaders, ...rows]
     .map((row) => row.map(escapeCsvField).join(","))
     .join("\r\n")}\r\n`;
 
-  return { content, fileName: getAttendeesCsvFileName(eventTitle, date) };
+  return { content, fileName: getAttendeesCsvFileName(eventTitle, timeZone, date) };
 }

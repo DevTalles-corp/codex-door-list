@@ -116,6 +116,7 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
   const [exportState, setExportState] = useState<"idle" | "loading" | "error">("idle");
+  const [auditExportState, setAuditExportState] = useState<"idle" | "loading" | "error">("idle");
   const [resendStates, setResendStates] = useState<Record<string, ResendState>>({});
   const [chartState, setChartState] = useState<ChartState>({ status: "loading", data: null });
 
@@ -155,29 +156,30 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
     }
   }, [eventId, session.access_token]);
 
-  const downloadAttendees = useCallback(async () => {
-    setExportState("loading");
+  const downloadCsv = useCallback(async (kind: "asistentes" | "auditoria") => {
+    const setState = kind === "asistentes" ? setExportState : setAuditExportState;
+    setState("loading");
     try {
-      const response = await fetch(`/api/eventos/${eventId}/asistentes`, {
+      const response = await fetch(`/api/eventos/${eventId}/${kind}`, {
         cache: "no-store",
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (!response.ok) {
-        setExportState("error");
+        setState("error");
         return;
       }
 
       const contentDisposition = response.headers.get("content-disposition");
-      const fileName = contentDisposition?.match(/filename="([^"]+)"/)?.[1] ?? "asistentes.csv";
+      const fileName = contentDisposition?.match(/filename="([^"]+)"/)?.[1] ?? `${kind}.csv`;
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
       link.download = fileName;
       link.click();
       URL.revokeObjectURL(url);
-      setExportState("idle");
+      setState("idle");
     } catch {
-      setExportState("error");
+      setState("error");
     }
   }, [eventId, session.access_token]);
 
@@ -309,14 +311,14 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
           <Link className="back-link" href="/dashboard">← Mis eventos</Link>
           <div className="heading-meta">
             <span className={`status-badge status-${dashboard.event.status}`}>{dashboard.event.status === "published" ? "Publicado" : "Borrador"}</span>
-            <span>{formatEventDate(dashboard.event.eventDate)}</span>
+            <span>{formatEventDate(dashboard.event.eventDate, dashboard.event.timeZone)} · {dashboard.event.timeZone}</span>
           </div>
           <h1>{dashboard.event.title}</h1>
           <p className="page-description">{dashboard.event.venue}</p>
         </div>
         <div className="summary-card">
           <strong>{totalRegistrations}</strong>
-          <span>registros totales</span>
+          <span>entradas válidas o utilizadas</span>
           <span>{checkedInCount} ingresos registrados</span>
         </div>
       </header>
@@ -350,14 +352,14 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
                     </strong>
                   </div>
                   {percentage === null ? null : (
-                    <div className="capacity-track" aria-label={`${ticketType.registrationCount} de ${ticketType.maxCapacity} entradas vendidas`}>
+                    <div className="capacity-track" aria-label={`${ticketType.registrationCount} entradas válidas o utilizadas de un cupo de ${ticketType.maxCapacity}`}>
                       <span style={{ width: `${percentage}%` }} />
                     </div>
                   )}
                   <p>
                     {ticketType.maxCapacity === null
                       ? "Sin límite de entradas"
-                      : `${Math.max(ticketType.maxCapacity - ticketType.registrationCount, 0)} lugares disponibles`}
+                      : `${ticketType.registrationCount} entradas válidas o utilizadas`}
                   </p>
                 </article>
               );
@@ -387,11 +389,16 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
                 type="button"
                 disabled={exportState === "loading"}
                 aria-busy={exportState === "loading"}
-                onClick={() => void downloadAttendees()}
+                onClick={() => void downloadCsv("asistentes")}
               >
                 {exportState === "loading" ? "Descargando…" : "Descargar CSV"}
               </button>
             ) : null}
+            <button className="button button-secondary" type="button"
+              disabled={auditExportState === "loading"} aria-busy={auditExportState === "loading"}
+              onClick={() => void downloadCsv("auditoria")}>
+              {auditExportState === "loading" ? "Descargando auditoría…" : "Descargar auditoría"}
+            </button>
           </div>
         </div>
         {hasAttendees && exportState === "error" ? (
@@ -399,6 +406,7 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
             No pudimos descargar los asistentes. Intenta nuevamente.
           </p>
         ) : null}
+        {auditExportState === "error" ? <p className="alert alert-error" role="alert">No pudimos descargar la auditoría. Intenta nuevamente.</p> : null}
         <div className="table-wrap">
           <table className="data-table">
             <caption className="visually-hidden">Personas registradas y su tipo de entrada</caption>
@@ -417,8 +425,8 @@ export default function EventDashboard({ eventId }: { eventId: string }) {
                   <tr key={registration.id}>
                     <td><strong>{registration.attendeeName}</strong><span>{registration.attendeeEmail}</span></td>
                     <td><span className="status-badge status-neutral">{registration.ticketType.name}</span></td>
-                    <td>{formatOrganizerEventDate(registration.registeredAt)}</td>
-                    <td>{registration.ticket.status === "used" ? <><span className="status-badge status-checked-in">Ingresó</span>{registration.ticket.checkedInAt ? <span className="check-in-time">{formatOrganizerEventDate(registration.ticket.checkedInAt)}</span> : null}</> : <span className="status-badge status-neutral">Pendiente</span>}</td>
+                    <td>{formatOrganizerEventDate(registration.registeredAt, dashboard.event.timeZone)}</td>
+                    <td>{registration.ticket.status === "used" ? <><span className="status-badge status-checked-in">Ingresó</span>{registration.ticket.checkedInAt ? <span className="check-in-time">{formatOrganizerEventDate(registration.ticket.checkedInAt, dashboard.event.timeZone)}</span> : null}</> : <span className="status-badge status-neutral">Pendiente</span>}</td>
                     <td>
                       <button
                         className="button button-secondary"

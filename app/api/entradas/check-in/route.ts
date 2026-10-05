@@ -43,16 +43,12 @@ export async function POST(request: Request) {
   const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
   if (userError || !userData.user) return errorResponse("authentication_required", 401);
 
-  const { data: event, error: eventError } = await supabase
-    .from("events").select("id").eq("id", eventId).eq("created_by", userData.user.id).maybeSingle();
-  if (eventError) return errorResponse("service_unavailable", 503);
-  if (!event) return errorResponse("forbidden", 403);
-
   const { data, error } = await supabase.rpc("check_in_ticket", {
     p_event_id: eventId,
     p_code: ticketCode,
   });
   if (error) {
+    if (error.code === "42501") return errorResponse("forbidden", 403);
     console.error("Ticket check-in failed", error.message);
     return errorResponse("service_unavailable", 503);
   }
