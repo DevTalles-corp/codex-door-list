@@ -142,7 +142,7 @@ export default function PublicTicket({ code }: { code: string }) {
               size={220}
               level="H"
               marginSize={2}
-              title={`Código QR de la entrada para ${ticket.attendee.name}`}
+              title="Código QR de la entrada"
             />
             <p className="ticket-instruction">
               Presenta este código QR al ingresar.
@@ -153,7 +153,6 @@ export default function PublicTicket({ code }: { code: string }) {
             <section aria-labelledby="ticket-attendee-heading">
               <h2 id="ticket-attendee-heading">Tu entrada</h2>
               <dl>
-                <div><dt>Asistente</dt><dd>{ticket.attendee.name}</dd></div>
                 <div><dt>Tipo de entrada</dt><dd>{ticket.ticket_type.name}</dd></div>
               </dl>
             </section>
@@ -161,7 +160,7 @@ export default function PublicTicket({ code }: { code: string }) {
             <section aria-labelledby="ticket-event-heading">
               <h2 id="ticket-event-heading">Evento</h2>
               <dl>
-                <div><dt>Fecha</dt><dd>{formatEventDate(ticket.event.event_date)}</dd></div>
+                <div><dt>Fecha</dt><dd>{formatEventDate(ticket.event.event_date, ticket.event.time_zone)} · {ticket.event.time_zone}</dd></div>
                 <div><dt>Lugar</dt><dd>{ticket.event.venue}</dd></div>
               </dl>
             </section>
@@ -179,9 +178,6 @@ export default function PublicTicket({ code }: { code: string }) {
         <details className="ticket-backup">
           <summary>Ver datos de respaldo</summary>
           <div className="ticket-backup-content">
-            <dl>
-              <div><dt>Email</dt><dd>{ticket.attendee.email}</dd></div>
-            </dl>
             <div>
               <p className="ticket-backup-label">Código de respaldo</p>
               <code className="ticket-code">

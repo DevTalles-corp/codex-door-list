@@ -48,6 +48,7 @@ export async function GET(
     const { content, fileName } = buildAttendeesCsv(
       dashboard.event.title,
       dashboard.registrations,
+      dashboard.event.timeZone,
     );
     return new NextResponse(content, {
       headers: {

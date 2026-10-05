@@ -5,5 +5,5 @@ export default async function RegistrationPage({
 }: PageProps<"/eventos/[id]/registro">) {
   const { id } = await params;
 
-  return <PublicRegistration eventId={id} />;
+  return <PublicRegistration eventCode={id} />;
 }

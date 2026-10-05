@@ -4,7 +4,9 @@
 
 **Created**: 2026-10-02
 
-**Status**: Draft
+**Status**: Implemented and locally verified (2026-10-05)
+
+**Implementation gate**: Las correcciones previas se implementaron mediante specs 002–005; ver [verificación](../003-reservas-verificadas/verification.md). El prerrequisito T001 y las tareas de aforo están cerrados con evidencia independiente en [quickstart.md](quickstart.md).
 
 **Input**: Impedir que el organizador reduzca el aforo del evento o el cupo de un tipo de entrada por debajo de las entradas ya vendidas, incluso fuera del panel y durante registros simultáneos, sin cambiar las reglas de venta actuales.
 
@@ -33,6 +35,7 @@ Como organizador, quiero conocer el mínimo permitido al editar el cupo de un ti
 3. **Dado** VIP con cupo 5 y ninguna entrada VIP vendida, **cuando** el organizador baja su cupo a 1, **entonces** el cambio se acepta, siempre que siga cumpliendo las demás reglas vigentes del evento.
 4. **Dado** un evento con aforo 4, un único tipo VIP con cupo 3 y tres registros guardados asociados a una entrada válida, una utilizada y una revocada, **cuando** el organizador intenta bajar el cupo VIP o el aforo a 2, **entonces** se rechaza el cambio y el mensaje indica 3 entradas que ocupan cupo; fijar cualquiera de esos límites en 3 se acepta, sin borrar registros ni cambiar estados de entradas.
 5. **Dado** un evento existente con aforo 4, un único tipo VIP con cupo 1 y 2 registros guardados, **cuando** se activa la protección, **entonces** se conservan el aforo, el cupo y los registros; una solicitud posterior para establecer VIP en 1 se rechaza aunque repita el valor guardado, y una solicitud para establecerlo en 2 se acepta.
+6. **Dado** un evento con aforo 4, **cuando** el organizador crea VIP indicando cupo 2, **entonces** ese valor declara un límite estricto: se permiten dos registros VIP y se rechaza el tercero por falta de cupo. Con dos registros guardados, establecer VIP en 1 se rechaza y en 2 se acepta. La misma interpretación se aplica a un VIP existente con cupo 2, sin añadir un indicador de modo ni modificar sus datos al activar la protección.
 
 ---
 
@@ -67,6 +70,8 @@ Como organizador, quiero que la protección se aplique aunque el límite se camb
 1. **Dado** VIP con cupo 2 y dos entradas VIP vendidas, **cuando** se intenta establecer cupo 1 por una vía distinta de la pantalla del panel, **entonces** se rechaza y VIP conserva cupo 2.
 2. **Dado** un evento con aforo 4, General con cupo 1 y una entrada vendida, y VIP con cupo 3 y una entrada vendida, **cuando** coinciden el registro de una segunda entrada VIP y una solicitud para bajar conjuntamente el aforo a 2 y el cupo VIP a 1, **entonces** el resultado respeta el orden efectivo: si se confirma primero la venta, se rechaza toda la reducción y quedan aforo 4, cupo VIP 3 y 3 ventas totales; si se acepta primero la reducción, quedan aforo 2, cupo VIP 1 y 2 ventas totales, y se rechaza el registro posterior por falta de cupo VIP. En ningún resultado quedan 3 entradas vendidas con aforo 2 ni una suma de cupos asignados superior al aforo.
 3. **Dado** VIP con cupo 3 y 1 entrada VIP vendida, **cuando** coinciden la venta de una segunda entrada VIP y una solicitud para bajar su cupo a 1, **entonces** si se confirma primero la venta se rechaza la reducción y quedan cupo 3 y 2 ventas VIP; si se acepta primero la reducción, el cupo queda en 1 y el registro posterior se rige por las reglas de venta vigentes para ese cupo. En ningún resultado quedan 2 entradas VIP vendidas con cupo 1.
+4. **Dado** un evento con aforo 4, VIP con cupo 3 y 1 registro, **cuando** se registra una segunda entrada VIP en una transacción READ COMMITTED y después se solicita cupo 2 por RPC o DML autorizado, **entonces** el registro y la edición se aceptan, quedan cupo 2 y 2 registros, y se mantienen la firma, los estados y la emisión del registro vigente.
+5. **Dado** el mismo estado inicial con aforo 4, VIP con cupo 3 y 1 registro, **cuando** se intenta registrar una segunda VIP, invocar la RPC de configuración o establecer un límite por DML en REPEATABLE READ o SERIALIZABLE, **entonces** cada intento se rechaza con error técnico SQLSTATE `0A000` antes de persistir escrituras propias de esa operación; permanecen aforo 4, cupo 3 y 1 Registration/Ticket. No se comunica falta de cupo ni se reintenta automáticamente dentro de la misma transacción. La RPC también rechaza en esos aislamientos un patch de solo nombre/título.
 
 ### Edge Cases
 
@@ -89,15 +94,16 @@ Como organizador, quiero que la protección se aplique aunque el límite se camb
 - **FR-005**: La regla debe aplicarse a toda vía que permita modificar estos límites, incluida una vía distinta de la pantalla del panel.
 - **FR-006**: Ante un rechazo por consumo, el organizador debe ver un mensaje en español que identifique el límite afectado y la cantidad de entradas ya vendidas que impide la reducción. Si hay varios límites inválidos en una misma solicitud, debe identificar cada uno con su cifra. Si el rechazo se debe a los cupos asignados, el mensaje debe identificar esa causa y su suma, sin atribuirla a ventas insuficientemente cubiertas.
 - **FR-007**: Partiendo de límites consistentes, los cambios de límite y los registros simultáneos deben resolverse sin que el resultado final supere el aforo ni el cupo estricto vigente. Esta garantía no exige sanear automáticamente inconsistencias anteriores a la activación, tratadas en FR-011.
-- **FR-008**: Las reglas actuales para vender y registrar entradas, incluidas las que determinan cuándo una entrada ocupa cupo, deben conservarse.
+- **FR-008**: Conservar la base corregida de specs 002–005: reserva pendiente de 10 minutos, confirmación por email, una entrada confirmada por email/evento, calendario explícito, publicación con tipo y permisos/auditoría. La RPC antigua de emisión directa ya no existe. Esta feature no altera esa política; protege ediciones frente al consumo conjunto.
 - **FR-009**: Debe conservarse la regla que impide que el aforo sea inferior a la suma de los cupos asignados a sus tipos de entrada. Igualar las ventas no basta para aceptar una reducción si incumple esa suma; en cambios conjuntos se evalúan los valores finales solicitados.
-- **FR-010**: Para los mínimos de aforo y cupo y las cifras de rechazo, se debe contar cada Registration guardada del evento o tipo correspondiente una sola vez, independientemente del estado de su Ticket asociado. Las entradas revocadas siguen contando; su estado no libera cupo para ventas nuevas.
+- **FR-010**: Para los mínimos de aforo y cupo y las cifras de rechazo, se debe contar cada Registration guardada del evento o tipo correspondiente una sola vez, independientemente del estado de su Ticket asociado. Las entradas revocadas siguen contando; su estado no libera cupo para ventas nuevas. Se suman también las reservas pendientes cuyo vencimiento sea posterior al reloj real del intento; al confirmar se sustituye su unidad pendiente por una confirmada, sin doble conteo.
 - **FR-011**: Al activar la protección, deben conservarse los límites, registros y entradas existentes sin aumentos automáticos ni exigir una corrección previa. Al establecer posteriormente cualquier límite, incluso en su valor guardado, ese límite debe cubrir su consumo y cumplir las demás reglas vigentes. Los cambios que no establecen límites no requieren sanear inconsistencias previas.
+- **FR-012**: `reserve_for_event`, `confirm_reservation`, la RPC de configuración (también para patches de solo metadatos) y las escrituras DML que activen las guardas de aforo, cupo o asociación de TicketType deben exigir READ COMMITTED. Otros niveles de aislamiento se rechazan con SQLSTATE `0A000` antes de persistir escrituras propias de la operación. Es un fallo técnico de contrato, distinto de falta de cupo y de contención transitoria; el caller debe iniciar una nueva transacción READ COMMITTED. El endpoint no permite elegir aislamiento y usa READ COMMITTED; si recibe `0A000` por una configuración incorrecta, devuelve 500 con mensaje propio. DML de solo metadatos que no active estas guardas conserva su comportamiento vigente.
 
 ### Key Entities
 
 - **Event (evento)**: Tiene un aforo global y reúne los registros de todos sus tipos de entrada.
-- **TicketType (tipo de entrada)**: Pertenece a un Event; puede tener un cupo declarado como límite estricto y registros propios.
+- **TicketType (tipo de entrada)**: Pertenece a un Event y tiene registros propios. En el modelo actual, configurar su cupo numérico obligatorio declara un límite estricto; todos los tipos existentes se interpretan de esa forma. No existe en esta feature un modo de cupo no estricto.
 - **Registration (registro)**: Pertenece a un Event y a un TicketType; cada registro guardado ocupa una unidad de cupo según la regla de venta vigente. En esta spec, las cantidades de entradas «vendidas» corresponden a estos registros.
 - **Ticket (entrada)**: Está asociado a una Registration y tiene estado válido, utilizado o revocado; cambiar ese estado no elimina el consumo de cupo de la Registration.
 
@@ -113,6 +119,17 @@ Como organizador, quiero que la protección se aplique aunque el límite se camb
 
 ## Assumptions
 
-- “Vendidas” y “ocupan cupo” corresponden a todos los registros guardados, incluso si su entrada está revocada; esta feature conserva ese criterio vigente y no introduce nuevas reglas de cancelación, caducidad ni liberación de cupo.
-- El cupo de un tipo se trata como límite estricto solo cuando el organizador lo declara como tal, de acuerdo con la constitución del proyecto. Esta feature protege los cupos que las reglas vigentes ya tratan como estrictos y no incorpora nuevos modos de cupo ni cambia cuáles son estrictos.
+- “Vendidas” identifica Registrations confirmadas; “consumo” incluye además reservas pendientes vigentes de spec 003. Los escenarios numéricos existentes preparan Registrations confirmadas salvo que indiquen pendientes. Una pendiente vencida no consume; una Registration revocada sigue consumiendo.
+- Declarar un cupo estricto significa indicar el cupo numérico obligatorio al crear o configurar un TicketType. El campo `maxCapacity` de UI/API corresponde a `ticket_types.max_capacity`; no se necesita un indicador adicional. Todo valor ya almacenado se interpreta como el límite configurado vigente, con independencia de su consumo y del estado de sus Tickets. Esta es la interpretación de compatibilidad de los tipos heredados, no una afirmación de que se auditó quién los creó. No se añaden modos no estrictos ni se cambia qué tipos tienen límite.
 - Las demás reglas existentes para editar límites, publicar eventos y vender entradas siguen vigentes, incluida la obligación de que el aforo cubra la suma de cupos asignados.
+
+## Base corregida y resolución constitucional
+
+El usuario autorizó resolver los incumplimientos mediante specs y correcciones verificadas, sin enmendar la constitución. Las specs [002](../002-calendario-por-evento/spec.md), [003](../003-reservas-verificadas/spec.md), [004](../004-publicacion-con-cupo/spec.md) y [005](../005-acceso-y-auditoria/spec.md) sustituyen la base de la revisión del 2026-10-02.
+
+- II: zona IANA propia, cierre y ventana explícitos UTC; edición DST y reloj de ingreso posterior al lock.
+- III: una entrada confirmada por email/evento, token privado de un uso y pendientes de 10 minutos que liberan cupo.
+- IV: cupo configurado declara límite estricto; publicación exige tipo. Reserva respeta aforo global y cupo incluso con consumo heredado inconsistente; activación no modifica límites ni Registrations.
+- V: códigos públicos de 256 bits, Ticket sin PII, staff por evento independiente, auditoría de revocadas y conservación de Tickets emitidos.
+
+La evidencia ejecutada está en `verification.md` de cada spec previa. El cambio de aforo incluye RPC conjunta, endpoint, restricciones diferidas y su matriz de aceptación ejecutada. Ver [evidencia de 001](quickstart.md); sus resultados son independientes de los prerrequisitos.

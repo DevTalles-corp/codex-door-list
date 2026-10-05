@@ -33,6 +33,7 @@ export default defineConfig({
         RESEND_API_KEY: "e2e-resend-key",
         RESEND_FROM_EMAIL: "Door List <tickets@example.test>",
         RESEND_BASE_URL: "http://127.0.0.1:3101",
+        SUPABASE_SERVICE_ROLE_KEY: process.env.E2E_SUPABASE_SERVICE_ROLE_KEY ?? "",
       },
     },
   ],

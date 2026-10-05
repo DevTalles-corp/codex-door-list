@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import QRCode from "qrcode";
+import { cleanupOrganizer } from "./constitutional-fixtures";
 
 type CapturedEmail = {
   to: string[];
@@ -75,17 +76,19 @@ test("publish, register, receive a ticket, and check in", async ({ page, request
     const registrationLink = eventCard.getByRole("link", { name: "Abrir registro" });
     await expect(registrationLink).toBeVisible();
     const registrationUrl = await registrationLink.getAttribute("href");
-    expect(registrationUrl).toMatch(/^\/eventos\/[0-9a-f-]+\/registro$/);
-    const eventId = registrationUrl!.split("/")[2];
+    expect(registrationUrl).toMatch(/^\/eventos\/[0-9a-f]{64}\/registro$/);
+    const publicCode = registrationUrl!.split("/")[2];
+    const { data: eventRow } = await supabase.from("events").select("id").eq("public_code", publicCode).single();
+    const eventId = eventRow!.id;
 
     await page.goto(registrationUrl!);
     await expect(page.getByRole("heading", { name: eventTitle })).toBeVisible();
     await page.getByRole("radio", { name: /General/ }).check();
     await page.getByLabel("Nombre completo").fill(attendeeName);
     await page.getByLabel("Email").fill(attendeeEmail);
-    await page.getByRole("button", { name: "Confirmar registro" }).click();
-    await expect(page.getByRole("heading", { name: "¡Registro confirmado!" })).toBeVisible();
-    await expect(page.getByRole("status")).toContainText(`Enviamos la entrada con el QR a ${attendeeEmail}`);
+    await page.getByRole("button", { name: "Enviar enlace de confirmación" }).click();
+    await expect(page.getByRole("heading", { name: "Revisa tu email" })).toBeVisible();
+    await expect(page.getByRole("status")).toContainText(attendeeEmail);
 
     await expect.poll(async () => {
       const response = await request.get(`http://127.0.0.1:3101/messages?to=${encodeURIComponent(attendeeEmail)}`);
@@ -93,7 +96,20 @@ test("publish, register, receive a ticket, and check in", async ({ page, request
       return (await response.json() as CapturedEmail[]).length;
     }).toBe(1);
     const messagesResponse = await request.get(`http://127.0.0.1:3101/messages?to=${encodeURIComponent(attendeeEmail)}`);
-    const [email] = await messagesResponse.json() as CapturedEmail[];
+    const [confirmationEmail] = await messagesResponse.json() as CapturedEmail[];
+    const confirmationUrl = confirmationEmail.text.match(/https?:\/\/[^\s]+\/eventos\/confirmar\?token=[0-9a-f]{64}/);
+    expect(confirmationUrl).not.toBeNull();
+    const { count } = await supabase.from("registrations").select("id", { count: "exact", head: true }).eq("event_id", eventId);
+    expect(count).toBe(0);
+    await page.goto(confirmationUrl![0]);
+    await page.getByRole("button", { name: "Confirmar reserva" }).click();
+    await expect(page.getByRole("link", { name: "Ver mi entrada" })).toBeVisible();
+    await expect.poll(async () => {
+      const response = await request.get(`http://127.0.0.1:3101/messages?to=${encodeURIComponent(attendeeEmail)}`);
+      return (await response.json() as CapturedEmail[]).length;
+    }).toBe(2);
+    const ticketMessages = await request.get(`http://127.0.0.1:3101/messages?to=${encodeURIComponent(attendeeEmail)}`);
+    const [, email] = await ticketMessages.json() as CapturedEmail[];
     expect(email.to).toContain(attendeeEmail);
     expect(email.subject).toContain(eventTitle);
     expect(email.text).toContain(attendeeName);
@@ -111,7 +127,8 @@ test("publish, register, receive a ticket, and check in", async ({ page, request
 
     await page.goto(ticketUrl![0]);
     await expect(page.getByRole("heading", { name: eventTitle })).toBeVisible();
-    await expect(page.getByText(attendeeName, { exact: true })).toBeVisible();
+    await expect(page.getByText(attendeeName, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(attendeeEmail, { exact: true })).toHaveCount(0);
     await expect(page.locator(".ticket-status")).toContainText("Válida");
 
     await page.goto(`/scan?eventId=${eventId}`);
@@ -149,8 +166,7 @@ test("publish, register, receive a ticket, and check in", async ({ page, request
     await expect(page.locator(".ticket-status")).toContainText("Utilizada");
   } finally {
     if (organizer.user) {
-      const { error } = await supabase.auth.admin.deleteUser(organizer.user.id);
-      expect(error).toBeNull();
+      await cleanupOrganizer(supabase, organizer.user.id);
     }
   }
 });

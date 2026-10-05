@@ -22,6 +22,11 @@ const server = createServer(async (request, response) => {
       const chunks = [];
       for await (const chunk of request) chunks.push(chunk);
       const message = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      if (message.to?.some((email) => email.startsWith("email-failure-"))) {
+        response.statusCode = 503;
+        response.end(JSON.stringify({ name: "application_error", message: "Simulated delivery failure" }));
+        return;
+      }
       messages.push(message);
       response.statusCode = 200;
       response.end(JSON.stringify({ id: randomUUID() }));

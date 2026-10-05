@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatEventDate } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
@@ -13,11 +12,8 @@ import type {
 
 type Confirmation = {
   eventTitle: string;
-  ticketName: string;
-  name: string;
   email: string;
-  ticketCode: string;
-  emailSent: boolean;
+  expiresAt: string;
 };
 
 function unavailableMessage() {
@@ -40,12 +36,10 @@ function registrationErrorCode(value: unknown): RegistrationErrorCode | null {
 function isRegistrationSuccess(value: unknown): value is RegistrationSuccessResponse {
   if (!value || typeof value !== "object") return false;
   const response = value as RegistrationSuccessResponse;
-  return typeof response.registrationId === "string"
-    && typeof response.ticketCode === "string"
-    && typeof response.emailSent === "boolean";
+  return response.status === "pending" && typeof response.expiresAt === "string";
 }
 
-export default function PublicRegistration({ eventId }: { eventId: string }) {
+export default function PublicRegistration({ eventCode }: { eventCode: string }) {
   const [data, setData] = useState<RegistrationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
@@ -69,7 +63,7 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
 
     const { data: response, error } = await supabase.rpc(
       "get_public_event_registration",
-      { p_event_id: eventId },
+      { p_code: eventCode },
     );
 
     if (error) {
@@ -91,7 +85,7 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
     setNotice("");
     setLoading(false);
     return nextData;
-  }, [eventId]);
+  }, [eventCode]);
 
   useEffect(() => {
     void Promise.resolve().then(() => loadEvent());
@@ -176,11 +170,8 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
 
     setConfirmation({
       eventTitle: data.event.title,
-      ticketName: ticket.name,
-      name: trimmedName,
       email: normalizedEmail,
-      ticketCode: result.ticketCode,
-      emailSent: result.emailSent,
+      expiresAt: result.expiresAt,
     });
     setSubmitting(false);
   }
@@ -231,21 +222,9 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
         <div className="confirmation-card">
           <p className="eyebrow">Door List</p>
           <div className="success-mark" aria-hidden="true">✓</div>
-          <h1>¡Registro confirmado!</h1>
-          <p>Tu lugar para <strong>{confirmation.eventTitle}</strong> está reservado.</p>
-          <p className={`alert ${confirmation.emailSent ? "alert-success" : "alert-warning"}`} role="status">
-            {confirmation.emailSent
-              ? `Enviamos la entrada con el QR a ${confirmation.email}.`
-              : "Tu entrada fue creada, pero no pudimos enviarla por email. Puedes abrirla desde el enlace de abajo."}
-          </p>
-          <dl className="confirmation-details">
-            <div><dt>Entrada</dt><dd>{confirmation.ticketName}</dd></div>
-            <div><dt>Nombre</dt><dd>{confirmation.name}</dd></div>
-            <div><dt>Email</dt><dd>{confirmation.email}</dd></div>
-          </dl>
-          <Link className="button button-primary" href={`/entradas/${confirmation.ticketCode}`}>
-            Ver mi entrada y código QR
-          </Link>
+          <h1>Revisa tu email</h1>
+          <p>Reservamos un lugar para <strong>{confirmation.eventTitle}</strong> durante 10 minutos.</p>
+          <p className="alert alert-success" role="status">Enviamos un enlace a {confirmation.email}. Ábrelo antes de {formatEventDate(confirmation.expiresAt, data.event.time_zone)} · {data.event.time_zone} para confirmar tu reserva y recibir la entrada.</p>
         </div>
       </main>
     );
@@ -257,7 +236,7 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
         <p className="eyebrow">Registro público</p>
         <h1 id="event-title">{data.event.title}</h1>
         <p className="event-meta">
-          {formatEventDate(data.event.event_date)}<br />
+          {formatEventDate(data.event.event_date, data.event.time_zone)} · {data.event.time_zone}<br />
           {data.event.venue}
         </p>
         {data.event.description && <p className="event-description">{data.event.description}</p>}
@@ -338,7 +317,7 @@ export default function PublicRegistration({ eventId }: { eventId: string }) {
               type="submit"
               disabled={submitting || availableTickets.length === 0}
             >
-              {submitting ? "Registrando…" : "Confirmar registro"}
+              {submitting ? "Reservando…" : "Enviar enlace de confirmación"}
             </button>
           </form>
         )}

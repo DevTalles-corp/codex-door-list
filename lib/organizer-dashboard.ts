@@ -14,6 +14,10 @@ type EventRow = {
   venue: string;
   max_capacity: number;
   status: OrganizerEventSummary["status"];
+  time_zone: string;
+  registration_closes_at: string;
+  entry_opens_at: string;
+  entry_closes_at: string;
 };
 
 type TicketTypeRow = {
@@ -54,6 +58,10 @@ function mapEvent(row: EventRow): OrganizerEventSummary {
     venue: row.venue,
     maxCapacity: row.max_capacity,
     status: row.status,
+    timeZone: row.time_zone,
+    registrationClosesAt: row.registration_closes_at,
+    entryOpensAt: row.entry_opens_at,
+    entryClosesAt: row.entry_closes_at,
   };
 }
 
@@ -63,7 +71,7 @@ export async function getOrganizerEvents(
 ): Promise<OrganizerEventSummary[]> {
   const { data, error } = await supabase
     .from("events")
-    .select("id,title,description,event_date,venue,max_capacity,status")
+    .select("id,title,description,event_date,venue,max_capacity,status,time_zone,registration_closes_at,entry_opens_at,entry_closes_at")
     .eq("created_by", userId)
     .order("event_date", { ascending: true });
 
@@ -78,7 +86,7 @@ export async function getOrganizerEventDashboard(
 ): Promise<OrganizerEventDashboard | null> {
   const { data: eventData, error: eventError } = await supabase
     .from("events")
-    .select("id,title,description,event_date,venue,max_capacity,status")
+    .select("id,title,description,event_date,venue,max_capacity,status,time_zone,registration_closes_at,entry_opens_at,entry_closes_at")
     .eq("id", eventId)
     .eq("created_by", userId)
     .maybeSingle();

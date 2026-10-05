@@ -4,11 +4,9 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import QrScanner from "qr-scanner";
 import { useOrganizerSession } from "@/components/organizer-auth";
-import { toLaPazDateKey } from "@/lib/dates";
-import { getOrganizerEvents } from "@/lib/organizer-dashboard";
 import { supabase } from "@/lib/supabase/client";
 import type { TicketSearchResponse } from "@/lib/door-search-types";
-import type { CheckInSuccessResponse, OrganizerEventSummary } from "@/lib/types";
+import type { CheckInSuccessResponse, DoorEvent } from "@/lib/types";
 
 type Result =
   | { status: "valid"; attendeeName: string; ticketTypeName: string }
@@ -225,8 +223,7 @@ function TicketScanner({ eventId }: { eventId: string }) {
 }
 
 export default function ScanScreen({ initialEventId }: { initialEventId: string }) {
-  const session = useOrganizerSession();
-  const [events, setEvents] = useState<OrganizerEventSummary[]>([]);
+  const [events, setEvents] = useState<DoorEvent[]>([]);
   const [eventId, setEventId] = useState(initialEventId);
   const [loadState, setLoadState] = useState<"loading" | "error" | "ready">("loading");
 
@@ -234,16 +231,20 @@ export default function ScanScreen({ initialEventId }: { initialEventId: string 
     if (!supabase) return;
     setLoadState("loading");
     try {
-      const data = await getOrganizerEvents(supabase, session.user.id);
-      const today = toLaPazDateKey(new Date());
-      const currentEvents = data.filter((event) => event.status === "published" && toLaPazDateKey(event.eventDate) === today);
+      const { data, error } = await supabase.rpc("get_door_events");
+      if (error) throw error;
+      const now = Date.now();
+      const currentEvents = (data as { id: string; title: string; event_date: string; status: "published"; time_zone: string; entry_opens_at: string; entry_closes_at: string }[])
+        .filter((event) => new Date(event.entry_opens_at).getTime() <= now && new Date(event.entry_closes_at).getTime() > now)
+        .map((event) => ({ id: event.id, title: event.title, eventDate: event.event_date, status: event.status,
+          timeZone: event.time_zone, entryOpensAt: event.entry_opens_at, entryClosesAt: event.entry_closes_at }));
       setEvents(currentEvents);
       setEventId((current) => currentEvents.some((item) => item.id === current) ? current : currentEvents[0]?.id ?? "");
       setLoadState("ready");
     } catch {
       setLoadState("error");
     }
-  }, [session.user.id]);
+  }, []);
 
   useEffect(() => { void Promise.resolve().then(loadEvents); }, [loadEvents]);
 
@@ -254,7 +255,7 @@ export default function ScanScreen({ initialEventId }: { initialEventId: string 
       </header>
       {loadState === "loading" ? <div className="data-state" role="status" aria-busy="true"><span className="skeleton skeleton-title" aria-hidden="true" /><p>Cargando eventos…</p></div> : null}
       {loadState === "error" ? <div className="data-state"><p className="alert alert-error" role="alert">No pudimos cargar tus eventos.</p><button className="button button-primary" type="button" onClick={() => void loadEvents()}>Intentar nuevamente</button></div> : null}
-      {loadState === "ready" && events.length === 0 ? <div className="data-state"><h2>No hay eventos para hoy</h2><p>El lector estará disponible el día de un evento publicado.</p><Link className="button button-secondary" href="/dashboard">Ir al panel</Link></div> : null}
+      {loadState === "ready" && events.length === 0 ? <div className="data-state"><h2>No hay eventos con ingreso abierto</h2><p>El lector estará disponible durante la ventana de ingreso de tus eventos asignados.</p></div> : null}
       {loadState === "ready" && events.length > 0 ? (
         <>
           <div className="scan-event-select"><label htmlFor="scan-event">Evento</label><select id="scan-event" value={eventId} onChange={(event) => setEventId(event.target.value)}>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select></div>
