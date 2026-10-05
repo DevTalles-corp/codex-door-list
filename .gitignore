@@ -21,9 +21,14 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
+*.log
+*.tmp
+*.swp
+Thumbs.db
 *.pem
 
 # debug
