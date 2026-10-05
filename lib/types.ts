@@ -9,18 +9,23 @@ export type Event = {
   max_capacity: number;
   status: EventStatus;
   published_at: string | null;
+  time_zone: string;
+  registration_closes_at: string;
+  entry_opens_at: string;
+  entry_closes_at: string;
+  public_code: string;
 };
 
 export type EventListing = Pick<
   Event,
-  "id" | "title" | "description" | "event_date" | "venue" | "status" | "max_capacity"
+  "id" | "title" | "description" | "event_date" | "venue" | "status" | "max_capacity" | "time_zone" | "registration_closes_at" | "public_code"
 > & {
   remaining_capacity: number;
 };
 
 export type RegistrationEvent = Pick<
   Event,
-  "id" | "title" | "description" | "event_date" | "venue"
+  "id" | "title" | "description" | "event_date" | "venue" | "time_zone" | "registration_closes_at"
 >;
 
 export type TicketType = {
@@ -40,7 +45,7 @@ export type RegistrationData = {
 };
 
 export type RegistrationRpcStatus =
-  | "success"
+  | "pending"
   | "event_unavailable"
   | "ticket_unavailable"
   | "duplicate_registration"
@@ -56,21 +61,22 @@ export type RegistrationRequest = {
 
 export type RegistrationRpcResult = {
   status: RegistrationRpcStatus;
-  registration_id: string | null;
-  ticket_code: string | null;
+  reservation_id: string | null;
+  expires_at: string | null;
 };
 
-export type RegistrationErrorCode = Exclude<RegistrationRpcStatus, "success"> | "service_unavailable";
+export type RegistrationErrorCode = Exclude<RegistrationRpcStatus, "pending"> | "service_unavailable";
 
 export type RegistrationErrorResponse = {
   error: RegistrationErrorCode;
 };
 
 export type RegistrationSuccessResponse = {
-  registrationId: string;
-  ticketCode: string;
-  emailSent: boolean;
+  status: "pending";
+  expiresAt: string;
 };
+
+export type ConfirmationResponse = { registrationId: string; ticketCode: string; emailSent: boolean };
 
 export type TicketStatus = "valid" | "used" | "revoked";
 
@@ -78,21 +84,20 @@ export type Ticket = {
   code: string;
   status: TicketStatus;
   issued_at: string;
-  attendee: {
-    name: string;
-    email: string;
-  };
   event: {
     title: string;
     event_date: string;
     venue: string;
+    time_zone: string;
   };
   ticket_type: {
     name: string;
   };
 };
 
-export type RegistrationTicket = Omit<Ticket, "status" | "issued_at">;
+export type RegistrationTicket = Pick<Ticket, "code" | "event" | "ticket_type"> & {
+  attendee: { name: string; email: string };
+};
 
 export type OrganizerEventSummary = {
   id: string;
@@ -102,7 +107,13 @@ export type OrganizerEventSummary = {
   venue: string;
   maxCapacity: number;
   status: EventStatus;
+  timeZone: string;
+  registrationClosesAt: string;
+  entryOpensAt: string;
+  entryClosesAt: string;
 };
+
+export type DoorEvent = Pick<OrganizerEventSummary, "id" | "title" | "eventDate" | "status" | "timeZone" | "entryOpensAt" | "entryClosesAt">;
 
 export type OrganizerTicketTypeMetrics = {
   id: string;
@@ -138,6 +149,10 @@ export type OrganizerRegistration = {
   ticket: OrganizerTicket;
 };
 
+export type AuditRegistration = Omit<OrganizerRegistration, "ticket"> & {
+  ticket: { code: string; status: TicketStatus; issuedAt: string; checkedInAt: string | null; revokedAt: string | null };
+};
+
 export type OrganizerEventDashboard = {
   event: OrganizerEventSummary;
   ticketTypes: OrganizerTicketTypeMetrics[];
@@ -157,3 +172,19 @@ export type DailyRegistrationsResponse = {
 export type ApiErrorResponse = {
   error: string;
 };
+
+export type CapacityViolation = {
+  scope: "event" | "ticketType";
+  reason: "registrationConsumption" | "assignedCapacity";
+  requestedCapacity: number;
+  minimumCapacity: number;
+  ticketTypeId?: string;
+  ticketTypeName?: string;
+};
+export type CapacityErrorDetails = { kind: "capacityViolation"; version: 1; violations: CapacityViolation[] };
+
+export type EventConfigurationRequest = {
+  event?: Partial<Pick<OrganizerEventSummary, "title" | "description" | "eventDate" | "venue" | "status" | "maxCapacity" | "timeZone" | "registrationClosesAt" | "entryOpensAt" | "entryClosesAt">>;
+  ticketType?: { id: string; name?: string; maxCapacity?: number };
+};
+export type EventConfigurationResponse = { eventId: string; ticketTypeId: string | null };
