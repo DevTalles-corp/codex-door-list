@@ -1,0 +1,92 @@
+begin;
+set local search_path = public, extensions;
+select no_plan();
+
+select is((select time_zone from events where id = '10000000-0000-4000-8000-000000000001'), 'America/La_Paz', 'upgrade assigns the existing event zone');
+select is((select event_date from events where id = '10000000-0000-4000-8000-000000000001'), '2026-10-06T02:00:00Z'::timestamptz, 'upgrade preserves the event instant');
+select is((select entry_opens_at from events where id = '10000000-0000-4000-8000-000000000001'), '2026-10-05T04:00:00Z'::timestamptz, 'upgrade materializes local day opening');
+select is((select registration_closes_at from events where id = '10000000-0000-4000-8000-000000000001'), '2026-10-06T04:00:00Z'::timestamptz, 'upgrade materializes local day closing');
+select is((select status::text from events where id = '10000000-0000-4000-8000-000000000002'), 'draft', 'upgrade unpublishes only the event without types');
+select is((select status::text from events where id = '10000000-0000-4000-8000-000000000001'), 'published', 'upgrade retains valid publication');
+select is((select status::text from tickets where code = repeat('a', 64)), 'revoked', 'upgrade retains revoked tickets');
+select is((select revoked_at from tickets where code = repeat('a', 64)), null::timestamptz, 'upgrade does not invent historical revocation dates');
+select ok((select public_code ~ '^[0-9a-f]{64}$' from events where id = '10000000-0000-4000-8000-000000000001'), 'public event identifier contains 256 bits');
+select ok(not (get_public_ticket(repeat('a', 64)) ? 'attendee'), 'public ticket response excludes personal details');
+select is(to_regprocedure('public.register_for_event(uuid,uuid,text,text)'), null::regprocedure, 'direct public issuance has been removed');
+select ok(not has_function_privilege('anon', 'public.reserve_for_event(uuid,uuid,text,text,text)', 'EXECUTE'), 'anonymous caller cannot mint a confirmation token');
+select ok(not has_function_privilege('authenticated', 'public.confirm_reservation(text)', 'EXECUTE'), 'authenticated caller cannot bypass email through the RPC');
+select ok((select relrowsecurity from pg_class where oid = 'public.registration_reservations'::regclass), 'reservations have RLS');
+select ok((select relrowsecurity from pg_class where oid = 'public.event_door_staff'::regclass), 'door assignments have RLS');
+
+select lives_ok($$update ticket_types set name = 'VIP renamed' where id = '20000000-0000-4000-8000-000000000003'$$, 'legacy metadata remains editable');
+select throws_ok($$update ticket_types set max_capacity = 1 where id = '20000000-0000-4000-8000-000000000003'$$, '23514', 'capacity violation', 'explicit same legacy limit is checked');
+select lives_ok($$update ticket_types set max_capacity = 2 where id = '20000000-0000-4000-8000-000000000003'$$, 'legacy equality accepts the confirmed consumption');
+
+insert into events (id, created_by, title, event_date, venue, max_capacity, time_zone, registration_closes_at, entry_opens_at, entry_closes_at) values
+  ('10000000-0000-4000-8000-000000000010', '00000000-0000-4000-8000-000000000001', 'Test event', now(), 'Test venue', 2, 'America/New_York', now() + interval '1 hour', now() - interval '1 hour', now() + interval '2 hours'),
+  ('10000000-0000-4000-8000-000000000011', '00000000-0000-4000-8000-000000000001', 'Empty test event', now(), 'Test venue', 2, 'Europe/Madrid', now() + interval '1 hour', now() - interval '1 hour', now() + interval '2 hours');
+select throws_ok($$update events set status = 'published' where id = '10000000-0000-4000-8000-000000000011'$$, '23514', 'published event requires a ticket type', 'DML cannot publish without a type');
+select throws_ok($$update events set time_zone = 'Not/AZone' where id = '10000000-0000-4000-8000-000000000010'$$, '22023', 'invalid event time zone', 'database rejects invalid event zones');
+select throws_ok($$update events set entry_closes_at = entry_opens_at where id = '10000000-0000-4000-8000-000000000010'$$, '23514', null, 'database rejects an empty entry window');
+select throws_ok($$update events set public_code = repeat('f', 64) where id = '10000000-0000-4000-8000-000000000010'$$, '22023', 'public code is immutable', 'public event identifiers cannot be replaced with predictable values');
+insert into ticket_types(id, event_id, name, max_capacity) values ('20000000-0000-4000-8000-000000000010', '10000000-0000-4000-8000-000000000010', 'General', 2);
+update events set status = 'published' where id = '10000000-0000-4000-8000-000000000010';
+select throws_ok($$delete from ticket_types where id = '20000000-0000-4000-8000-000000000010'$$, '23514', 'published event requires a ticket type', 'cannot delete the last published type');
+
+create temporary table first_reservation as select * from reserve_for_event('10000000-0000-4000-8000-000000000010', '20000000-0000-4000-8000-000000000010', 'Test attendee', 'test-attendee@example.test', repeat('1', 64));
+select is((select status from first_reservation), 'pending', 'reserving creates a pending reservation');
+select ok((select expires_at between clock_timestamp() + interval '9 minutes 59 seconds' and clock_timestamp() + interval '10 minutes 1 second' from first_reservation), 'reservation lifetime is 10 minutes');
+select is((select count(*) from tickets t join registrations r on r.id = t.registration_id where r.event_id = '10000000-0000-4000-8000-000000000010'), 0::bigint, 'no ticket exists before confirmation');
+create temporary table confirmed as select * from confirm_reservation(repeat('1', 64));
+select is((select status from confirmed), 'success', 'a valid token confirms');
+select is((select status from confirm_reservation(repeat('1', 64))), 'invalid_token', 'confirmation token is consumed once');
+select is((select status from reserve_for_event('10000000-0000-4000-8000-000000000010', '20000000-0000-4000-8000-000000000010', 'Again', ' TEST-ATTENDEE@example.test ', repeat('2', 64))), 'duplicate_registration', 'normalized email has one confirmed entry per event');
+select is((select status from reserve_for_event('10000000-0000-4000-8000-000000000010', '20000000-0000-4000-8000-000000000010', 'Pending', 'pending@example.test', repeat('3', 64))), 'pending', 'second occupied seat can be a pending reservation');
+select is((select status from reserve_for_event('10000000-0000-4000-8000-000000000010', '20000000-0000-4000-8000-000000000010', 'Third', 'third@example.test', repeat('4', 64))), 'ticket_unavailable', 'one confirmed plus one pending fills capacity 2');
+select throws_ok($$update ticket_types set max_capacity = 1 where id = '20000000-0000-4000-8000-000000000010'$$, '23514', 'capacity violation', 'reductions include pending reservations');
+update registration_reservations set expires_at = clock_timestamp() - interval '1 second' where token_hash = repeat('3', 64);
+select is((select status from confirm_reservation(repeat('3', 64))), 'expired', 'expired confirmation cannot issue a ticket');
+select is(capacity_consumption('10000000-0000-4000-8000-000000000010'), 1::bigint, 'expired reservations release capacity without deleting confirmed registrations');
+select is((select status from reserve_for_event('10000000-0000-4000-8000-000000000010', '20000000-0000-4000-8000-000000000010', 'Retry', 'pending@example.test', repeat('5', 64))), 'pending', 'expired email can reserve again');
+update events set registration_closes_at = clock_timestamp() - interval '1 second' where id = '10000000-0000-4000-8000-000000000010';
+select is((select status from confirm_reservation(repeat('5', 64))), 'success', 'pending reservation can confirm after registration closes');
+select is((select status from reserve_for_event('10000000-0000-4000-8000-000000000010', '20000000-0000-4000-8000-000000000010', 'Late', 'late@example.test', repeat('6', 64))), 'event_unavailable', 'closed registration rejects new reservations');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000001', true);
+select is(manage_door_staff('10000000-0000-4000-8000-000000000010', 'door-staff@example.test', true), 'success', 'owner assigns verified staff immediately');
+select is(manage_door_staff('10000000-0000-4000-8000-000000000010', 'unverified@example.test', true), 'account_unavailable', 'unverified account cannot be assigned');
+select is(manage_door_staff('10000000-0000-4000-8000-000000000010', 'missing@example.test', true), 'account_unavailable', 'missing account must register first');
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000002', true);
+set local role authenticated;
+select is((select count(*) from get_door_events()), 1::bigint, 'staff sees only assigned published events');
+select is(search_door_ticket('10000000-0000-4000-8000-000000000010', 'test-attendee@example.test')->>'attendeeName', 'Test attendee', 'assigned staff can find an attendee');
+select is((select count(*) from registrations where event_id = '10000000-0000-4000-8000-000000000010'), 0::bigint, 'staff cannot read organizer registrations through RLS');
+select lives_ok($$update events set title = 'Unauthorized' where id = '10000000-0000-4000-8000-000000000010'$$, 'RLS suppresses updates by staff without organizer permission');
+reset role;
+select is((select title from events where id = '10000000-0000-4000-8000-000000000010'), 'Test event', 'staff cannot edit the event');
+select throws_ok($$select search_door_ticket('10000000-0000-4000-8000-000000000001', 'legacy-attendee@example.test')$$, '42501', 'forbidden', 'staff cannot search another event');
+update events set entry_opens_at = now() + interval '1 hour' where id = '10000000-0000-4000-8000-000000000010';
+select is((select status from check_in_ticket('10000000-0000-4000-8000-000000000010', (select ticket_code from confirmed))), 'not_found', 'entry is rejected before the explicit opening');
+update events set entry_opens_at = now() - interval '1 hour', entry_closes_at = now() where id = '10000000-0000-4000-8000-000000000010';
+select is((select status from check_in_ticket('10000000-0000-4000-8000-000000000010', (select ticket_code from confirmed))), 'not_found', 'entry is rejected at the exact closing');
+update events set entry_closes_at = now() + interval '1 hour' where id = '10000000-0000-4000-8000-000000000010';
+select is((select status from check_in_ticket('10000000-0000-4000-8000-000000000010', (select ticket_code from confirmed))), 'valid', 'assigned staff can check in within the explicit window');
+select is((select status from check_in_ticket('10000000-0000-4000-8000-000000000010', (select ticket_code from confirmed))), 'used', 'check-in is recorded once');
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000001', true);
+select is(manage_door_staff('10000000-0000-4000-8000-000000000010', 'door-staff@example.test', false), 'success', 'owner can revoke door permission');
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000002', true);
+select throws_ok($$select check_in_ticket('10000000-0000-4000-8000-000000000010', repeat('0', 64))$$, '42501', 'forbidden', 'revoked staff loses access immediately');
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000001', true);
+update tickets set status = 'revoked' where registration_id = (select registration_id from confirmed);
+select ok((select revoked_at is not null from tickets where registration_id = (select registration_id from confirmed)), 'new revocations have an audit timestamp');
+select is(capacity_consumption('10000000-0000-4000-8000-000000000010'), 2::bigint, 'revoked ticket retains confirmed consumption');
+select is(search_door_ticket('10000000-0000-4000-8000-000000000010', 'test-attendee@example.test'), null::jsonb, 'revoked ticket is excluded from door search');
+select throws_ok($$delete from events where id = '10000000-0000-4000-8000-000000000010'$$, '23503', 'issued tickets must be retained for audit', 'event deletion cannot erase issued-ticket audit');
+select throws_ok($$delete from ticket_types where id = '20000000-0000-4000-8000-000000000010'$$, '23503', 'issued tickets must be retained for audit', 'type deletion cannot erase issued-ticket audit');
+
+select is((select status from reserve_for_event('10000000-0000-4000-8000-000000000004','20000000-0000-4000-8000-000000000005','New VIP','global-vip@example.test',repeat('9',64))), 'ticket_unavailable', 'global capacity rejects a free type in a full legacy Event');
+select is((select remaining_capacity from get_public_event_list() where id='10000000-0000-4000-8000-000000000004'), 0, 'public listing respects the global bound');
+select is((get_public_event_registration((select public_code from events where id='10000000-0000-4000-8000-000000000004'))->'ticket_types'->1->>'remaining_capacity')::integer, 0, 'public registration does not advertise seats beyond the global bound');
+select is((select count(*) from registrations where event_id='10000000-0000-4000-8000-000000000004'), 2::bigint, 'legacy global-bound rejection preserves historical consumption');
+select * from finish();
+rollback;
