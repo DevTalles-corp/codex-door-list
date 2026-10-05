@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { getDateKeysBetween, toLaPazDateKey } from "@/lib/dates";
+import { getDateKeysBetween, toEventDateKey } from "@/lib/dates";
 import type {
   ApiErrorResponse,
   DailyRegistrationCount,
@@ -13,6 +13,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 
 type EventPublicationRow = {
   published_at: string | null;
+  time_zone: string;
 };
 
 type RegistrationDateRow = {
@@ -66,7 +67,7 @@ export async function GET(
 
   const { data: eventData, error: eventError } = await supabase
     .from("events")
-    .select("published_at")
+    .select("published_at,time_zone")
     .eq("id", eventId)
     .eq("created_by", userData.user.id)
     .maybeSingle();
@@ -79,7 +80,7 @@ export async function GET(
     return errorResponse("event_not_found", 404);
   }
 
-  const { published_at: publishedAt } = eventData as EventPublicationRow;
+  const { published_at: publishedAt, time_zone: timeZone } = eventData as EventPublicationRow;
   if (!publishedAt) {
     const body: DailyRegistrationsResponse = {
       publishedAt: null,
@@ -102,14 +103,14 @@ export async function GET(
 
   const counts = (registrationsData as RegistrationDateRow[]).reduce<Record<string, number>>(
     (dailyCounts, registration) => {
-      const date = toLaPazDateKey(registration.created_at);
+      const date = toEventDateKey(registration.created_at, timeZone);
       dailyCounts[date] = (dailyCounts[date] ?? 0) + 1;
       return dailyCounts;
     },
     {},
   );
-  const today = toLaPazDateKey(new Date());
-  const publicationDate = toLaPazDateKey(publishedAt);
+  const today = toEventDateKey(new Date(), timeZone);
+  const publicationDate = toEventDateKey(publishedAt, timeZone);
   const registrationsByDay: DailyRegistrationCount[] = getDateKeysBetween(
     publicationDate,
     today,

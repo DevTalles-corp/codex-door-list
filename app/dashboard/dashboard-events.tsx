@@ -78,7 +78,7 @@ export default function DashboardEvents() {
               <div>
                 <span className={`status-badge status-${event.status}`}>{event.status === "published" ? "Publicado" : "Borrador"}</span>
                 <h2>{event.title}</h2>
-                <p className="event-card-date">{formatEventDate(event.eventDate)}</p>
+                <p className="event-card-date">{formatEventDate(event.eventDate, event.timeZone)} · {event.timeZone}</p>
                 <p className="event-card-venue">{event.venue}</p>
               </div>
               <footer className="event-card-footer">

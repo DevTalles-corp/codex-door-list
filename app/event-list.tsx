@@ -13,7 +13,7 @@ type EventGroup = {
 
 function groupEvents(events: EventListing[]) {
   return events.reduce<EventGroup[]>((groups, event) => {
-    const label = getEventDateGroup(event.event_date);
+    const label = getEventDateGroup(event.event_date, event.time_zone);
     const group = groups.at(-1);
 
     if (group?.label === label) {
@@ -37,13 +37,13 @@ function AgendaEvent({ event, featured = false }: { event: EventListing; feature
   return (
     <article className={`agenda-event${featured ? " agenda-event-featured" : ""}`}>
       <time className="agenda-event-date" dateTime={event.event_date}>
-        {formatEventAgendaDate(event.event_date)}
+        {formatEventAgendaDate(event.event_date, event.time_zone)}
       </time>
       <div className="agenda-event-details">
         <h3>{event.title}</h3>
         <p className="agenda-event-venue">{event.venue}</p>
         {event.description && <p className="agenda-event-description">{event.description}</p>}
-        <p className="agenda-event-time">{formatEventDate(event.event_date)}</p>
+        <p className="agenda-event-time">{formatEventDate(event.event_date, event.time_zone)} · {event.time_zone}</p>
       </div>
       <footer className="agenda-event-actions">
         <p className={hasAvailability ? "agenda-event-availability" : "agenda-event-sold-out"}>
@@ -53,7 +53,7 @@ function AgendaEvent({ event, featured = false }: { event: EventListing; feature
           <Link
             aria-label={`Reservar entrada para ${event.title}`}
             className="button button-primary agenda-event-action"
-            href={`/eventos/${event.id}/registro`}
+            href={`/eventos/${event.public_code}/registro`}
           >
             Reservar entrada
           </Link>
