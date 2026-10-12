@@ -15,6 +15,7 @@
 /playwright-report/
 /test-results/
 /tests/e2e/fixtures/event-covers/
+/specs/006-imagenes-en-eventos/screenshots/
 
 # next.js
 /.next/

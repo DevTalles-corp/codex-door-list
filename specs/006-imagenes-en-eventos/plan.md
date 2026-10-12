@@ -30,6 +30,27 @@ Subir directamente a un bucket privado de Supabase Storage con firma emitida por
 
 **Scale/Scope**: Eventos pequeños/medianos; una portada vigente por Event, dos vistas públicas y editor en organización existente. Sin galería, transformación de pago, zoom o cambios al registro. Retención de candidatos limitada por firmas y limpieza durable.
 
+### Política operativa compartida
+
+API, decoder y worker consumirán una única configuración server-only en `lib/event-cover-config.json`; no copiar valores entre módulos o funciones SQL. Valores iniciales:
+
+| Clave | Valor | Alcance |
+|---|---|---|
+| `decodeConcurrency` | 1 | Decodificación simultánea por proceso |
+| `decodeTimeoutMs` | 30000 | Timeout de decodificación por intento |
+| `storageRequestTimeoutMs` | 30000 | Timeout por petición de descarga/publicación/retirada |
+| `processingTimeoutMs` | 120000 | Deadline total desde claim, incluida espera de decode y commit |
+| `processingLeaseMs` | 180000 | Lease desde claim para procesamiento o limpieza |
+| `cleanupTransferMarginMs` | 300000 | Margen adicional de transferencia: cinco minutos |
+
+Validar enteros positivos, `processingTimeoutMs >= max(decodeTimeoutMs, storageRequestTimeoutMs)`, `processingLeaseMs > processingTimeoutMs` y `cleanupTransferMarginMs >= 300000`. Servicio y worker pasan las duraciones a las funciones SQL restringidas; estas validan rangos/relaciones y persisten deadlines UTC. Configuración ajustable al hosting sin convertir límites operativos en reglas de admisión por píxeles; verificar soporte de duraciones y binarios antes de despliegue y dejar evidencia.
+
+No iniciar trabajo externo después del deadline ni liberar un slot de decode mientras su trabajo siga activo. Timeout/agotar recursos produce fallo temporal reintentable, no rechazo por formato. Un timeout HTTP o una cancelación local no prueban que Storage haya terminado: mantener lease cercado, paths y jobs recuperables.
+
+Para cada candidato registrar, antes de publicar, `due_at >= attemptLeaseUntil + storageRequestTimeoutMs + cleanupTransferMarginMs`, conservando ese límite en su job aunque cambie el lease de la operación. Staging espera `uploadExpiresAt + cleanupTransferMarginMs`. Estos tiempos habilitan una comprobación de limpieza, no prueban por sí solos fin de transferencia: comprobar ausencia de referencia activa/commit posible y reprogramar si una transferencia sigue incierta. No perder tombstones/jobs; reconciliar objetos tardíos y reabrir jobs cuando corresponda. Ver [data-model.md](data-model.md).
+
+Definir casos de carreras/retención antes del backend de US3 e integrar sus runners después. Ejecutar pruebas automatizadas por historia; la inspección visual completa con `impeccable`, incluido mantenimiento, se realiza en polish tras US3, con una inspección conjunta y como máximo una confirmación después de corregir defectos agrupados.
+
 ## Constitution Check
 
 *GATE: comprobación antes de Phase 0 y después de Phase 1.*
@@ -85,6 +106,7 @@ components/event-cover.tsx
 lib/
 ├── types.ts
 ├── event-cover-types.ts
+├── event-cover-config.json
 ├── event-cover.ts
 ├── event-cover-validation.ts
 ├── event-cover-service.ts

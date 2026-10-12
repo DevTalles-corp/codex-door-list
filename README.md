@@ -7,8 +7,9 @@ Landing inicial para una plataforma de tickets de eventos.
 Copia `.env.example` a `.env.local` y completa los valores. Las variables
 `NEXT_PUBLIC_` se envían al navegador; `RESEND_API_KEY` y
 `SUPABASE_SERVICE_ROLE_KEY` deben permanecer en el servidor. La clave de servicio
-solo se usa en el flujo privado de reserva y confirmación por enlace de email;
-las operaciones del organizador conservan su JWT y RLS.
+se usa en los flujos privados de reserva, confirmación y portadas. La edición de
+portadas verifica el JWT y la propiedad antes de usarla y revalida el owner bajo
+lock transaccional; el resto de operaciones conserva su JWT y RLS.
 
 Para enviar confirmaciones a participantes, verifica un dominio propio en Resend
 y configura `RESEND_FROM_EMAIL` con una dirección de ese dominio. El remitente de
@@ -208,3 +209,67 @@ todas. La RPC y las operaciones de límites requieren READ COMMITTED.
 
 Ver [guía y evidencia](specs/001-proteger-limites-aforo/quickstart.md) y los
 [contratos](specs/001-proteger-limites-aforo/contracts/event-configuration.md).
+
+## Portadas de eventos (spec 006)
+
+Requiere Node >=22 y sharp 0.35.3 con su binario nativo de producción. El owner
+puede guardar JPEG, PNG o WebP estáticos de hasta 5 MiB, con dimensiones orientadas
+de al menos 640 × 360 px. La portada, alternativa y encuadre se guardan por separado
+de los detalles del Event. Una revisión protege contra cambios simultáneos y un
+registro durable permite recuperar respuestas perdidas. Los originales validados
+se publican con claves inmutables; el staging permanece privado.
+
+El esquema y los buckets se crean únicamente mediante las migraciones versionadas
+de `supabase/migrations/`, incluida `20261008120000_event_covers.sql`. Aplicar las
+migraciones con el procedimiento habitual del proyecto antes de desplegar código.
+
+```bash
+node tests/db/run-event-covers.mjs
+npx playwright test --config tests/unit/playwright.config.ts
+```
+
+El runner requiere Docker, Supabase CLI y Chromium; usa un proyecto desechable en
+`556xx`, Storage real y correo simulado. Comprueba upgrade, SQL, carreras, limpieza,
+editor, geometría y las regresiones de reserva/email/QR/check-in, aforo y permisos.
+Un proxy de fallos exclusivo del proceso de pruebas ocupa `3102`; navegador y correo
+usan `3100/3101`. Ejecutar estos runners en secuencia. `--db-only` limita la ejecución
+a SQL/carreras/limpieza; los argumentos de Playwright permiten filtrar el navegador.
+`--no-screenshots` permite repetir comprobaciones funcionales del editor sin otra
+ronda de capturas. Las pruebas de decoder guardan artefactos en un subdirectorio
+propio para conservar las capturas del navegador.
+
+Las imágenes de `tests/e2e/fixtures/event-covers/` se generan bajo demanda y no
+se versionan. El generador compartido también se ejecuta antes de las pruebas de
+limpieza de base de datos, por lo que `--db-only` funciona desde un checkout limpio.
+Las capturas de revisión en `specs/006-imagenes-en-eventos/screenshots/` y los
+resultados en `test-results/` son artefactos locales excluidos de Git. Se conservan
+en el repositorio únicamente el icono de la aplicación y las siete portadas del
+seed, necesarias para reproducir los ejemplos y comprobar su integridad. El seed
+y sus imágenes son datos de desarrollo y no deben cargarse en producción.
+
+La limpieza se ejecuta en un proceso de servidor, con las variables existentes
+`NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` cargadas en su entorno:
+
+```bash
+node scripts/cleanup-event-covers.mjs
+```
+
+Configurar en el hosting elegido un scheduler **cada 15 minutos** y alertar por exit
+no cero. La salida contiene solo cantidades. Los fallos dejan trabajos con backoff;
+la siguiente ejecución reintenta. Una transferencia incierta no se da por terminada
+por haber vencido su petición: se conserva su evidencia y se revisan objetos tardíos.
+Los resultados y tombstones se retienen al menos 24 horas y actualmente no se purgan
+automáticamente, para permitir reconciliación posterior. La portada vigente se protege.
+
+`lib/event-cover-config.json` es la única configuración compartida entre servicio,
+decoder y worker: decodeConcurrency=1, decodeTimeoutMs=30000,
+storageRequestTimeoutMs=30000, processingTimeoutMs=120000,
+processingLeaseMs=180000 y cleanupTransferMarginMs=300000. Los valores deben ser
+enteros positivos; el deadline cubre cada timeout individual, el lease supera el
+deadline y el margen es al menos 300000 ms. Cada intento persiste sus propios límites;
+cambiar la configuración no acorta la protección de un objeto anterior.
+
+Antes del despliegue, verificar en ese hosting el binario sharp, memoria/concurrencia,
+duración disponible de API/worker y el scheduler con un fallo y un reintento reales.
+Estas comprobaciones operativas siguen pendientes: el runner local no configura
+hosting ni aplica migraciones remotas. Ver [evidencia de portadas](specs/006-imagenes-en-eventos/verification.md).

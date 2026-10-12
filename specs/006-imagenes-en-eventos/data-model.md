@@ -49,6 +49,7 @@ La revisión bigint se representa como cadena decimal en JSON para no perder pre
 | `upload_expires_at` | timestamptz nullable; vencimiento de firma de dos horas |
 | `state` | pending / processing / prepared / committed / rejected / conflict / expired |
 | `lease_token` / `lease_until` | token de cercado y límite UTC; solo poseedor vigente avanza |
+| `processing_deadline_at` | timestamptz nullable UTC; fijado en cada claim y sin extensión durante ese intento |
 | `candidate_path` | text nullable; clave aleatoria de intento vigente, registrada antes de publicar |
 | `validated_metadata` | jsonb nullable; MIME, tamaño, dimensiones orientadas, hash verificados |
 | `requested_metadata` | jsonb nullable; alternativa/posiciones congeladas por fingerprint |
@@ -58,6 +59,12 @@ La revisión bigint se representa como cadena decimal en JSON para no perder pre
 Índices: `(event_id, created_at)`, `(state, lease_until)`, `(state, upload_expires_at)` y unique paths. Solo el actor autorizado puede consultar el resultado HTTP; no dar SELECT general sobre el ledger. Payload de fingerprint usa valores normalizados, Event, kind y revisión. Repetir ID con otro payload produce 409; misma petición devuelve su resultado durable. PATCH/DELETE reciben `operationId` aleatorio del cliente; servidor comprueba formato/entropía de su generador de UI y vincula ID al primer actor/Event/kind. La seguridad de autorización no depende de conocer el ID.
 
 Al recuperar lease vencido, generar nueva clave de candidato y registrar cleanup para el intento anterior. Un worker viejo no puede comprometer con lease obsoleto; sus paths siguen identificados para limpieza. No reutilizar keys entre intentos.
+
+### Deadlines y configuración operativa
+
+La fuente única es `lib/event-cover-config.json`, definida en [plan.md](plan.md#política-operativa-compartida): `decodeConcurrency = 1`, `decodeTimeoutMs = 30000`, `storageRequestTimeoutMs = 30000`, `processingTimeoutMs = 120000`, `processingLeaseMs = 180000` y `cleanupTransferMarginMs = 300000`. API/decoder/worker consumen los mismos valores; SQL recibe duraciones de servicio verificado y valida rangos/relaciones. Enteros positivos, deadline total >=timeouts individuales, lease >deadline total y margen >=cinco minutos.
+
+Cada claim fija `lease_until` en UTC a claim +180 segundos y `processing_deadline_at` a claim +120 segundos con los valores iniciales; el tiempo de espera de decode cuenta dentro del deadline. Guardar ambos límites del intento para que cambios posteriores de configuración no los alteren. No iniciar download/decode/publicación/commit después del deadline; un lease vencido cerca al ejecutor anterior. Un timeout no demuestra fin de transferencia y no borra paths ni cambia un resultado committed. El fallo operativo se trata como temporal; no añade restricciones de dimensiones/píxeles.
 
 ### Transiciones
 
@@ -88,7 +95,11 @@ Metadata/remove no descargan ni publican archivos: pasan a committed dentro de l
 | `last_error_code` | código técnico sin PII, tokens ni mensajes crudos |
 | `created_at` / `updated_at` | timestamptz UTC |
 
-Índice por `(state, next_attempt_at)`; filas sobreviven eliminación de Event/usuario. Antes de efectos externos registrar candidato como cleanup diferido; commit convierte jobs del objeto activo en protegidos por referencia y encola anterior/staging. Worker solo elimina paths no vigentes y no comprometibles por una operación viva. Un job done puede reabrirse para el barrido final contra uploads tardíos. Solo considerar staging terminado después de firma vencida + cinco minutos; para candidatos abandonados esperar fin de lease, timeout máximo de publicación y margen de transferencia. API Storage remove idempotente; fallos reintentan con backoff.
+Índice por `(state, next_attempt_at)`; filas sobreviven eliminación de Event/usuario. Antes de efectos externos registrar candidato como cleanup diferido; commit convierte jobs del objeto activo en protegidos por referencia y encola anterior/staging. Worker solo elimina paths no vigentes y no comprometibles por una operación viva. Un job done puede reabrirse para el barrido final contra uploads tardíos. API Storage remove idempotente; fallos reintentan con backoff.
+
+Para staging, `due_at >= uploadExpiresAt + cleanupTransferMarginMs` (firma +cinco minutos con valores iniciales). Para cada candidato abandonado, persistir antes de publicación `due_at >= attemptLeaseUntil + storageRequestTimeoutMs + cleanupTransferMarginMs` (lease de ese intento +30 segundos +cinco minutos); conservar ese límite aunque otro intento cambie el lease de la operación. Cada claim de limpieza usa `processingLeaseMs`, timeout Storage `storageRequestTimeoutMs` y cercado del job.
+
+Al alcanzar `due_at`, volver a comprobar referencia activa, posibilidad de commit y fin de transferencia. Tiempo transcurrido o timeout HTTP no prueban por sí solos que la transferencia acabó; reprogramar y conservar jobs/tombstones mientras siga incierta. Reconciliar/reabrir jobs de objetos tardíos sin borrar activos y no purgar evidencia de paths hasta cerrar ese riesgo, aunque hayan pasado 24 horas. Pruebas de límites con reloj controlado deben cubrir antes/en/después de deadlines, lease y `due_at`, timeout con transferencia aún activa y retry cercado.
 
 ## Storage
 
