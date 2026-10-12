@@ -183,8 +183,14 @@ for (const coverState of ["absent", "delayed", "failed"] as const) test(`publish
     await page.getByRole("button", { name: "Abrir cámara" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Entrada válida" })).toContainText(attendeeName);
 
-    await page.getByRole("button", { name: "Escanear otra entrada" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Entrada usada" })).toBeVisible();
+    // Exercise consecutive restarts of the camera, including after a rejected check-in.
+    for (let scan = 0; scan < 2; scan++) {
+      const checkInResponse = page.waitForResponse((response) =>
+        response.url().endsWith("/api/entradas/check-in") && response.request().method() === "POST");
+      await page.getByRole("button", { name: "Escanear otra entrada" }).click();
+      expect((await checkInResponse).status()).toBe(409);
+      await expect(page.getByRole("status").filter({ hasText: "Entrada usada" })).toBeVisible();
+    }
 
     await page.goto(ticketUrl![0]);
     await expect(page.locator(".ticket-status")).toContainText("Utilizada");

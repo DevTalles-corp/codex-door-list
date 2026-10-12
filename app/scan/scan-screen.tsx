@@ -17,6 +17,7 @@ function TicketScanner({ eventId }: { eventId: string }) {
   const session = useOrganizerSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<QrScanner | null>(null);
+  const validateCodeRef = useRef<((code: string) => Promise<void>) | null>(null);
   const busyRef = useRef(false);
   const searchRequestRef = useRef(0);
   const [cameraState, setCameraState] = useState<CameraState>("idle");
@@ -31,8 +32,6 @@ function TicketScanner({ eventId }: { eventId: string }) {
 
   const stopCamera = useCallback(() => {
     scannerRef.current?.stop();
-    scannerRef.current?.destroy();
-    scannerRef.current = null;
     setCameraState("idle");
   }, []);
 
@@ -45,10 +44,7 @@ function TicketScanner({ eventId }: { eventId: string }) {
   const validateCode = useCallback(async (code: string) => {
     if (busyRef.current) return;
     busyRef.current = true;
-    scannerRef.current?.stop();
-    scannerRef.current?.destroy();
-    scannerRef.current = null;
-    setCameraState("idle");
+    stopCamera();
     setValidating(true);
     setResult(null);
     try {
@@ -74,7 +70,11 @@ function TicketScanner({ eventId }: { eventId: string }) {
       busyRef.current = false;
       setValidating(false);
     }
-  }, [eventId, session.access_token]);
+  }, [eventId, session.access_token, stopCamera]);
+
+  useEffect(() => {
+    validateCodeRef.current = validateCode;
+  }, [validateCode]);
 
   async function startCamera() {
     if (cameraState === "starting" || validating) return;
@@ -86,8 +86,9 @@ function TicketScanner({ eventId }: { eventId: string }) {
     setCameraState("starting");
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     if (!videoRef.current) return;
-    const scanner = new QrScanner(videoRef.current, (scan) => {
-      void validateCode(scan.data);
+    // Reuse the instance so a previous delayed stop cannot close a new scanner's stream.
+    const scanner = scannerRef.current ?? new QrScanner(videoRef.current, (scan) => {
+      void validateCodeRef.current?.(scan.data);
     }, {
       preferredCamera: "environment",
       returnDetailedScanResult: true,
@@ -99,8 +100,7 @@ function TicketScanner({ eventId }: { eventId: string }) {
       if (scannerRef.current === scanner) setCameraState("scanning");
     } catch {
       if (scannerRef.current === scanner) {
-        scanner.destroy();
-        scannerRef.current = null;
+        scanner.stop();
         setCameraState("unavailable");
       }
     }
