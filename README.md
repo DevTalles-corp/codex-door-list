@@ -27,6 +27,87 @@ npm run dev
 
 Abre [http://localhost:3000](http://localhost:3000).
 
+## Datos de ejemplo para desarrollo
+
+`supabase/seed.sql` carga siete eventos publicados de música, tecnología, cocina,
+senderismo, cine y arte local. Crea catorce tipos de entrada, quince registros
+confirmados y sus quince tickets. El tipo **Primera fila** de **Jazz en la ciudad**
+tiene sus tres plazas ocupadas; la entrada General sigue disponible. Además,
+**Sesión acústica íntima** tiene sus cinco plazas ocupadas: tres de General y dos
+de Primera fila. Aparece como un evento sin cupos disponibles.
+
+Las fechas se calculan al crear los datos, usando `America/La_Paz`: tres eventos
+en lo que queda de esta semana, dos en lo que queda de este mes y dos en meses
+posteriores. Al final de mes esos grupos pueden coincidir. El registro permanece
+abierto hasta el inicio de cada evento. Los identificadores fijos y `ON CONFLICT`
+permiten volver a ejecutar la semilla sin duplicar datos. Una reaplicación conserva
+las fechas, las ediciones y los códigos de tickets existentes; un reset los recrea
+con fechas actualizadas. Los eventos pertenecen a un organizador ficticio sin
+credenciales de acceso. Los emails usan el dominio reservado `.example` y la
+carga no envía correos.
+
+### Local
+
+Requiere Docker activo y Supabase CLI (comandos verificados con 2.116.0). Desde
+la raíz del repositorio:
+
+```bash
+supabase start
+supabase db reset --local
+supabase seed buckets --local
+supabase status -o env
+```
+
+**El reset borra los datos locales**, aplica todas las migraciones y ejecuta
+`supabase/seed.sql`, ya habilitado en `[db.seed]` de `supabase/config.toml`.
+El comando de buckets carga las siete portadas PNG de 1200 × 675 px incluidas en
+`supabase/seed-assets/event-covers/` mediante la API de Storage. Es seguro repetirlo;
+también sirve si el CLI ya cargó los archivos al iniciar o resetear. Los nombres
+sin extensión conservan el formato `covers/<sha256>` que exige la aplicación;
+el CLI detecta el tipo PNG por su contenido. No basta con insertar filas en
+`storage.objects`: Storage necesita los archivos reales.
+
+Configura `.env.local` con `API_URL` como `NEXT_PUBLIC_SUPABASE_URL`, `ANON_KEY`
+como `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` y `SERVICE_ROLE_KEY` como
+`SUPABASE_SERVICE_ROLE_KEY`, tomados de `supabase status -o env`. Reinicia
+`npm run dev` si cambias estas variables. La cartelera de `/` mostrará los ejemplos.
+
+### Remoto vinculado
+
+**Usar únicamente en un proyecto remoto de desarrollo desechable.**
+`supabase db reset --linked` elimina las entidades y los datos de aplicación del
+proyecto vinculado antes de reconstruirlo. Comprueba el proyecto elegido y guarda
+una copia de cualquier dato que quieras conservar. El ejecutable se escribe
+`supabase` (no `supbase`).
+
+```bash
+supabase login
+supabase link --project-ref TU_PROJECT_REF_DE_DESARROLLO
+supabase db reset --linked
+supabase seed buckets --linked
+```
+
+El reset remoto aplica las migraciones y la misma semilla SQL. La carga de buckets
+publica después las portadas en el Storage del proyecto vinculado. Para verlas,
+la aplicación debe usar la URL y las claves de **ese mismo proyecto** en
+`.env.local`. El esquema y los buckets siguen definidos en las migraciones;
+la semilla solo escribe datos y el CLI carga los archivos.
+
+Para reaplicar únicamente los datos, sin resetear, ejecuta el contenido de
+`supabase/seed.sql` desde el SQL Editor de Studio local o del proyecto remoto de
+desarrollo, y repite `supabase seed buckets --local` o `--linked` según corresponda.
+No uses esta semilla para despliegues de producción.
+
+La verificación aislada prueba el reset, la idempotencia, el evento y el tipo
+agotados y la descarga de todas las portadas, sin modificar el proyecto de desarrollo:
+
+```bash
+node tests/db/run-seed.mjs
+```
+
+Referencia: [semillas de Supabase](https://supabase.com/docs/guides/local-development/seeding-your-database)
+y [comandos del CLI](https://supabase.com/docs/reference/cli/supabase-db-reset).
+
 ## Compilación
 
 ```bash

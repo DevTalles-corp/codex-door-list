@@ -12,7 +12,9 @@ export async function createCapacityEnvironment({ legacy = false } = {}) {
   await mkdir(migrationDir, { recursive: true });
   const config = (await readFile("supabase/config.toml", "utf8"))
     .replace('project_id = "door-list"', `project_id = "${projectId}"`)
-    .replaceAll("543", "555").replace(/\[db.seed\]\nenabled = true/, "[db.seed]\nenabled = false");
+    .replaceAll("543", "555").replace(/\[db.seed\]\nenabled = true/, "[db.seed]\nenabled = false")
+    // Capacity fixtures do not include the development Storage assets.
+    .replace(/\n\[storage\.buckets\.event-covers\][\s\S]*?(?=\n\[|$)/, "\n");
   await writeFile(path.join(workdir, "supabase/config.toml"), config);
   const files = (await readdir("supabase/migrations")).filter((file) => file.endsWith(".sql")).sort();
   for (const file of files.filter((file) => !legacy || file < "20261005150000"))

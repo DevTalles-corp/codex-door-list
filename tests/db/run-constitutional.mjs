@@ -12,7 +12,9 @@ const migrationDir = path.join(workdir, "supabase/migrations");
 await mkdir(migrationDir, { recursive: true });
 let config = await readFile("supabase/config.toml", "utf8");
 config = config.replace('project_id = "door-list"', `project_id = "${projectId}"`)
-  .replaceAll("543", "554").replace(/\[db.seed\]\nenabled = true/, "[db.seed]\nenabled = false");
+  .replaceAll("543", "554").replace(/\[db.seed\]\nenabled = true/, "[db.seed]\nenabled = false")
+  // Constitutional fixtures do not include the development Storage assets.
+  .replace(/\n\[storage\.buckets\.event-covers\][\s\S]*?(?=\n\[|$)/, "\n");
 await writeFile(path.join(workdir, "supabase/config.toml"), config);
 const migrations = (await readdir("supabase/migrations")).filter((name) => name.endsWith(".sql")).sort();
 for (const name of migrations.filter((name) => name < "20261005000000")) {
