@@ -48,7 +48,8 @@ for (const coverState of ["absent", "delayed", "failed"] as const) test(`publish
   expect(organizer.user).toBeTruthy();
 
   try {
-    await page.goto("/organizador");
+    const organizerResponse = await page.goto("/organizador", { waitUntil: "domcontentloaded" });
+    expect(organizerResponse?.ok(), `/organizador returned HTTP ${organizerResponse?.status() ?? "no response"}`).toBe(true);
     await page.getByLabel("Email").fill(organizerEmail);
     await page.getByLabel("Contraseña").fill(password);
     await page.getByRole("button", { name: "Ingresar" }).click();

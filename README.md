@@ -128,6 +128,26 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+Para ejecutar la cobertura completa, incluida la inyección de fallos de Storage:
+
+```bash
+npm run test:e2e:full
+```
+
+Este comando ejecuta primero la suite general y después el runner aislado de
+portadas, en secuencia; se detiene si alguna ejecución falla. Requiere el proyecto
+local actualizado, Docker, Supabase CLI y Chromium. La suite general omite
+intencionalmente el caso `Storage failures and lost commit responses`, porque
+necesita el proxy de fallos exclusivo del runner aislado; la segunda ejecución
+activa ese proxy y ejecuta el caso. Un resultado general con un test omitido no
+equivale a haber completado toda la cobertura.
+
+El servidor E2E usa `.next-e2e/dev`, separado de `.next/dev` del desarrollo
+habitual y de `.next` del build de producción. Los traces y adjuntos se guardan
+en `test-results/e2e` y `test-results/event-covers`, respectivamente, para
+conservar los resultados de ambas suites. Los runners comparten los puertos
+`3100/3101/3102` y deben ejecutarse en secuencia.
+
 `test:e2e` obtiene la URL y las claves del proyecto desde `supabase status -o env`.
 Si Supabase ya corre fuera del CLI, establece `E2E_SUPABASE_URL`,
 `E2E_SUPABASE_ANON_KEY` y `E2E_SUPABASE_SERVICE_ROLE_KEY` antes de ejecutar

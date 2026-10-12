@@ -5,6 +5,7 @@ const coverFaultProxy = process.env.E2E_COVER_FAULT_PROXY === "1";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  outputDir: coverFaultProxy ? "./test-results/event-covers" : "./test-results/e2e",
   fullyParallel: false,
   workers: 1,
   timeout: 120_000,
@@ -30,6 +31,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       env: {
+        E2E_NEXT_SERVER: "1",
         NEXT_PUBLIC_SUPABASE_URL: coverFaultProxy ? "http://127.0.0.1:3102" : process.env.E2E_SUPABASE_URL ?? "",
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.E2E_SUPABASE_ANON_KEY ?? "",
         RESEND_API_KEY: "e2e-resend-key",
