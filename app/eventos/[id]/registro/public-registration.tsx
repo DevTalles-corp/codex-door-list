@@ -1,8 +1,11 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatEventDate } from "@/lib/dates";
+import Link from "next/link";
+import { formatEventDate, formatEventTimeZone } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
+import EventCover from "@/components/event-cover";
+import { publicEventCover } from "@/lib/event-cover";
 import type {
   RegistrationData,
   RegistrationErrorCode,
@@ -50,6 +53,7 @@ export default function PublicRegistration({ eventCode }: { eventCode: string })
   const [notice, setNotice] = useState("");
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const noticeRef = useRef<HTMLParagraphElement>(null);
+  const confirmationHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const loadEvent = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -94,6 +98,10 @@ export default function PublicRegistration({ eventCode }: { eventCode: string })
   useEffect(() => {
     if (notice) noticeRef.current?.focus();
   }, [notice]);
+
+  useEffect(() => {
+    if (confirmation) confirmationHeadingRef.current?.focus();
+  }, [confirmation]);
 
   const availableTickets = useMemo(
     () => data?.ticket_types.filter((ticket) => ticket.remaining_capacity > 0) ?? [],
@@ -180,11 +188,15 @@ export default function PublicRegistration({ eventCode }: { eventCode: string })
     return (
       <main className="page-shell public-page" aria-busy="true">
         <p className="visually-hidden" role="status">Cargando evento…</p>
+        <Link className="back-link public-navigation" href="/">Ver otros eventos</Link>
         <header className="public-event-header" aria-hidden="true">
-          <span className="skeleton skeleton-compact" />
-          <span className="skeleton skeleton-title" />
-          <span className="skeleton skeleton-secondary" />
-          <span className="skeleton skeleton-primary" />
+          <div className="public-event-summary">
+            <span className="skeleton skeleton-title" />
+            <span className="skeleton skeleton-secondary" />
+            <span className="skeleton skeleton-primary" />
+          </div>
+          <span className="skeleton skeleton-field registration-shortcut" />
+          <div className="event-cover skeleton" />
         </header>
         <div className="registration-card" aria-hidden="true">
           <span className="skeleton skeleton-section-title" />
@@ -199,9 +211,8 @@ export default function PublicRegistration({ eventCode }: { eventCode: string })
 
   if (unavailable || !data) {
     return (
-      <main className="page-shell state-page">
+      <main className="page-shell state-page public-registration-state">
         <div className="data-state">
-          <p className="eyebrow">Door List</p>
           <h1>Registro no disponible</h1>
           <p className="alert alert-error" role="alert" tabIndex={-1} ref={noticeRef}>
             {notice || unavailableMessage()}
@@ -211,6 +222,7 @@ export default function PublicRegistration({ eventCode }: { eventCode: string })
               Intentar nuevamente
             </button>
           )}
+          <Link className="back-link public-navigation" href="/">Ver otros eventos</Link>
         </div>
       </main>
     );
@@ -218,33 +230,58 @@ export default function PublicRegistration({ eventCode }: { eventCode: string })
 
   if (confirmation) {
     return (
-      <main className="page-shell state-page">
+      <main className="page-shell state-page public-registration-state">
         <div className="confirmation-card">
-          <p className="eyebrow">Door List</p>
-          <div className="success-mark" aria-hidden="true">✓</div>
-          <h1>Revisa tu email</h1>
+          <div className="success-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="m5 12 4 4L19 6" />
+            </svg>
+          </div>
+          <h1 className="registration-heading" tabIndex={-1} ref={confirmationHeadingRef}>Revisa tu email</h1>
           <p>Reservamos un lugar para <strong>{confirmation.eventTitle}</strong> durante 10 minutos.</p>
-          <p className="alert alert-success" role="status">Enviamos un enlace a {confirmation.email}. Ábrelo antes de {formatEventDate(confirmation.expiresAt, data.event.time_zone)} · {data.event.time_zone} para confirmar tu reserva y recibir la entrada.</p>
+          <p className="alert alert-success" role="status">Enviamos un enlace a <strong>{confirmation.email}</strong>. Ábrelo antes de {formatEventDate(confirmation.expiresAt, data.event.time_zone)} · {formatEventTimeZone(confirmation.expiresAt, data.event.time_zone)} para confirmar tu reserva y recibir la entrada.</p>
+          <Link className="back-link public-navigation" href="/">Ver otros eventos</Link>
         </div>
       </main>
     );
   }
 
+  const hasLongDescription = Boolean(data.event.description && (
+    data.event.description.length > 280 || data.event.description.split("\n").length > 4
+  ));
+
   return (
     <main className="page-shell public-page">
+      <Link className="back-link public-navigation" href="/">Ver otros eventos</Link>
       <header className="public-event-header">
-        <p className="eyebrow">Registro público</p>
-        <h1 id="event-title">{data.event.title}</h1>
-        <p className="event-meta">
-          {formatEventDate(data.event.event_date, data.event.time_zone)} · {data.event.time_zone}<br />
-          {data.event.venue}
-        </p>
-        {data.event.description && <p className="event-description">{data.event.description}</p>}
+        <div className="public-event-summary">
+          <h1 id="event-title">{data.event.title}</h1>
+          <p className="event-meta">
+            <time dateTime={data.event.event_date}>
+              {formatEventDate(data.event.event_date, data.event.time_zone)} · {formatEventTimeZone(data.event.event_date, data.event.time_zone)}
+            </time>
+            <span>{data.event.venue}</span>
+          </p>
+        </div>
+        {availableTickets.length > 0 && (
+          <a className="button button-primary registration-shortcut" href="#registration-title">
+            Reservar entrada
+          </a>
+        )}
+        <EventCover title={data.event.title} cover={publicEventCover(data.event.cover, data.event.title)} sizes="(max-width: 700px) min(calc(100vw - 2rem), 480px), (max-width: 1056px) calc((100vw - 6rem) / 2), 480px" loading="eager" />
+        {data.event.description && (hasLongDescription ? (
+          <details className="event-description-details">
+            <summary>Detalles del evento</summary>
+            <p className="event-description">{data.event.description}</p>
+          </details>
+        ) : <p className="event-description">{data.event.description}</p>)}
       </header>
 
       <section className="registration-card" aria-labelledby="registration-title">
-        <h2 id="registration-title">Reserva tu entrada</h2>
-        <p className="field-help">Todos los campos son obligatorios.</p>
+        <div className="registration-intro">
+          <h2 className="registration-heading" id="registration-title" tabIndex={-1}>Reserva tu entrada</h2>
+          {availableTickets.length > 0 && <p className="field-help">Todos los campos son obligatorios.</p>}
+        </div>
 
         {notice && (
           <p className="alert alert-error" role="alert" tabIndex={-1} ref={noticeRef}>
@@ -256,6 +293,12 @@ export default function PublicRegistration({ eventCode }: { eventCode: string })
           <div className="inline-state">
             <strong>No hay entradas disponibles</strong>
             <p>Este evento todavía no tiene tipos de entrada para reservar.</p>
+          </div>
+        ) : availableTickets.length === 0 ? (
+          <div className="inline-state">
+            <h3>Entradas agotadas</h3>
+            <p>Ya no quedan cupos disponibles para este evento.</p>
+            <Link className="back-link public-navigation" href="/">Ver otros eventos</Link>
           </div>
         ) : (
           <form onSubmit={submitRegistration} aria-busy={submitting}>
@@ -307,10 +350,17 @@ export default function PublicRegistration({ eventCode }: { eventCode: string })
                 onChange={(event) => setEmail(event.target.value)}
                 maxLength={254}
                 autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                aria-describedby="confirmation-help"
                 disabled={submitting}
                 required
               />
             </label>
+
+            <p className="field-help registration-confirmation-help" id="confirmation-help">
+              Recibirás un enlace por email. Tendrás 10 minutos para confirmar tu reserva.
+            </p>
 
             <button
               className="button button-primary submit-registration"

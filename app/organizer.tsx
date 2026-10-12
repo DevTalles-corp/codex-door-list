@@ -1,5 +1,6 @@
 "use client";
 
+import EventCoverEditor from "./event-cover-editor";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { formatCandidateOffset, formatOrganizerEventDate, fromZonedDateTimeLocal, getZonedDateTimeCandidates, registrationIsOpen, toZonedDateTimeLocal } from "@/lib/dates";
@@ -87,7 +88,8 @@ export default function Organizer() {
   const [typeCapacityTouched, setTypeCapacityTouched] = useState(false);
   const [savingEvent, setSavingEvent] = useState(false); const [savingType, setSavingType] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const busy = savingEvent || savingType || Boolean(deletingId);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const busy = savingEvent || savingType || Boolean(deletingId) || coverBusy;
   const showError = (text: string) => setNotice({ text, error: true });
   const groupedTicketTypes = useMemo(() => ticketTypes.reduce<Record<string, TicketType[]>>((all, type) => {
     (all[type.event_id] ??= []).push(type); return all;
@@ -229,6 +231,7 @@ export default function Organizer() {
     <header><div><p className="eyebrow">Door List</p><h1>Panel del organizador</h1></div><button className="secondary" type="button" onClick={() => void supabase?.auth.signOut()}>Cerrar sesión</button></header>
     {notice ? <p ref={noticeRef} tabIndex={-1} className={`alert ${notice.error ? "alert-error" : "alert-success"}`} role={notice.error ? "alert" : "status"}>{notice.text}</p> : null}
     <section className="editor">
+      <div className="event-configuration-editor">
       <form onSubmit={saveEvent} aria-busy={savingEvent}>
         <h2>{editingEvent ? "Editar evento" : "Nuevo evento"}</h2>
         <fieldset className="fields" disabled={busy}><legend className="visually-hidden">Detalles del evento</legend>
@@ -245,6 +248,10 @@ export default function Organizer() {
         <button disabled={busy}>{savingEvent ? "Guardando evento…" : editingEvent ? "Guardar cambios" : "Crear evento"}</button>
         {editingEvent ? <button type="button" className="secondary" disabled={busy} onClick={resetEvent}>Cancelar</button> : null}
       </form>
+      {editingEvent ? <EventCoverEditor key={editingEvent.id} eventId={editingEvent.id} title={editingEvent.title}
+        accessToken={session.access_token} onBusyChange={setCoverBusy} disabled={savingEvent || savingType || Boolean(deletingId)} />
+        : <p className="help">Puedes añadir una portada después de crear el evento.</p>}
+      </div>
       <form onSubmit={saveTicketType} aria-busy={savingType}>
         <h2>{editingTicketType ? "Editar tipo de entrada" : "Nuevo tipo de entrada"}</h2>
         <fieldset className="fields" disabled={busy}><legend className="visually-hidden">Detalles del tipo de entrada</legend>

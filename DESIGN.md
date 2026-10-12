@@ -152,7 +152,9 @@ Una base fría y neutra hace que los datos respiren; el azul de confianza dirige
 
 El contenido usa un contenedor máximo de 70rem con márgenes laterales mínimos de 1rem. La escala espacial va de 0.25rem a 4rem y las páginas operativas se organizan en bloques con separaciones de 2rem a 3rem. Las tarjetas se adaptan en cuadrículas con un ancho mínimo de 18.75rem; a 43.75rem o menos, formularios, cabeceras y vistas públicas pasan a una sola columna.
 
-La página de registro público se divide en información del evento y formulario hasta el punto de quiebre. Las tablas conservan el desplazamiento horizontal antes que comprimir sus datos hasta hacerlos ilegibles.
+La cartelera conserva las columnas vacías de la cuadrícula para que uno o dos eventos no se expandan a todo el ancho. En una columna, las tarjetas tienen un ancho máximo de 30rem. Las portadas públicas también se limitan a 30rem y mantienen su proporción 16:9 en carga, ausencia y fallo.
+
+La página de registro público se divide en información del evento y formulario hasta el punto de quiebre. El nombre, la fecha y la sede preceden a la portada; en móvil un enlace lleva directamente al formulario. Las descripciones largas se despliegan bajo demanda. Las tablas conservan el desplazamiento horizontal antes que comprimir sus datos hasta hacerlos ilegibles.
 
 ## Elevation & Depth
 

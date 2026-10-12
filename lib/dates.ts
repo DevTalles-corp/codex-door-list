@@ -89,9 +89,26 @@ export function formatEventAgendaDate(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("es-BO", {
     day: "numeric",
     month: "short",
+    year: "numeric",
     weekday: "short",
     timeZone,
   }).format(new Date(value));
+}
+
+export function formatEventTime(value: string, timeZone: string) {
+  return new Intl.DateTimeFormat("es-BO", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "shortOffset",
+    timeZone,
+  }).format(new Date(value));
+}
+
+export function formatEventTimeZone(value: string, timeZone: string) {
+  return new Intl.DateTimeFormat("es-BO", {
+    timeZoneName: "shortOffset",
+    timeZone,
+  }).formatToParts(new Date(value)).find((part) => part.type === "timeZoneName")?.value ?? timeZone;
 }
 
 export function getEventDateGroup(value: string, timeZone: string) {

@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { formatEventAgendaDate, formatEventDate, getEventDateGroup, registrationIsOpen } from "@/lib/dates";
+import { formatEventAgendaDate, formatEventTime, getEventDateGroup, registrationIsOpen } from "@/lib/dates";
 import { supabase } from "@/lib/supabase/client";
 import type { EventListing } from "@/lib/types";
+import EventCover from "@/components/event-cover";
+import { publicEventCover } from "@/lib/event-cover";
 
 type EventGroup = {
   label: string;
@@ -26,7 +28,8 @@ function groupEvents(events: EventListing[]) {
   }, []);
 }
 
-function AgendaEvent({ event, featured = false }: { event: EventListing; featured?: boolean }) {
+function AgendaEvent({ event }: { event: EventListing }) {
+  const coverSizes = "(max-width: 700px) min(calc(100vw - 2rem), 480px), (max-width: 979px) calc((100vw - 3.5rem) / 2), (max-width: 1152px) calc((100vw - 5rem) / 3), 358px";
   const hasAvailability = event.remaining_capacity > 0;
   const availabilityLabel = hasAvailability
     ? event.remaining_capacity === 1
@@ -35,7 +38,9 @@ function AgendaEvent({ event, featured = false }: { event: EventListing; feature
     : "Entradas agotadas";
 
   return (
-    <article className={`agenda-event${featured ? " agenda-event-featured" : ""}`}>
+    <article className="agenda-event">
+      <EventCover title={event.title} cover={publicEventCover(event.cover, event.title)} sizes={coverSizes} />
+      <div className="agenda-event-content">
       <time className="agenda-event-date" dateTime={event.event_date}>
         {formatEventAgendaDate(event.event_date, event.time_zone)}
       </time>
@@ -43,7 +48,9 @@ function AgendaEvent({ event, featured = false }: { event: EventListing; feature
         <h3>{event.title}</h3>
         <p className="agenda-event-venue">{event.venue}</p>
         {event.description && <p className="agenda-event-description">{event.description}</p>}
-        <p className="agenda-event-time">{formatEventDate(event.event_date, event.time_zone)} · {event.time_zone}</p>
+        <p className="agenda-event-time">
+          <time dateTime={event.event_date}>{formatEventTime(event.event_date, event.time_zone)}</time>
+        </p>
       </div>
       <footer className="agenda-event-actions">
         <p className={hasAvailability ? "agenda-event-availability" : "agenda-event-sold-out"}>
@@ -61,6 +68,7 @@ function AgendaEvent({ event, featured = false }: { event: EventListing; feature
           <span className="agenda-event-unavailable">No disponible</span>
         )}
       </footer>
+      </div>
     </article>
   );
 }
@@ -73,6 +81,8 @@ function EventListSkeleton() {
       <div className="event-agenda" aria-hidden="true">
         {Array.from({ length: 3 }, (_, index) => (
           <div className="agenda-event agenda-event-skeleton" key={index}>
+            <div className="event-cover skeleton" />
+            <div className="agenda-event-content">
             <span className="skeleton skeleton-compact" />
             <div className="agenda-event-skeleton-details">
               <span className="skeleton skeleton-title" />
@@ -80,6 +90,7 @@ function EventListSkeleton() {
               <span className="skeleton skeleton-primary" />
             </div>
             <span className="skeleton skeleton-field" />
+            </div>
           </div>
         ))}
       </div>
@@ -150,13 +161,13 @@ export default function EventList() {
   return (
     <section className="event-list-state" aria-labelledby="events-heading">
       <h2 className="visually-hidden" id="events-heading">Eventos disponibles</h2>
-      {groupEvents(events).map((group, groupIndex) => (
+      {groupEvents(events).map((group) => (
         <section className="event-group" aria-labelledby={`group-${group.label}`} key={group.label}>
           <h2 id={`group-${group.label}`}>{group.label}</h2>
           <ol className="event-agenda">
-            {group.events.map((event, eventIndex) => (
+            {group.events.map((event) => (
               <li key={event.id}>
-                <AgendaEvent event={event} featured={groupIndex === 0 && eventIndex === 0} />
+                <AgendaEvent event={event} />
               </li>
             ))}
           </ol>
