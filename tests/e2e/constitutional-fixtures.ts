@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { APIRequestContext } from "@playwright/test";
+import { fixtureError } from "./fixture-errors";
 
 export type CapturedEmail = { to: string[]; subject: string; html: string; text: string;
   attachments?: { filename: string; content: string | { type: "Buffer"; data: number[] } }[] };
@@ -14,7 +15,7 @@ export async function createAccount(admin: SupabaseClient, prefix: string, verif
   const email = `${prefix}-${randomUUID()}@example.test`;
   const password = `DoorList-${randomUUID()}`;
   const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: verified });
-  if (error || !data.user) throw new Error("Could not create local fixture account");
+  if (error || !data.user) throw fixtureError("Could not create local fixture account", error);
   return { id: data.user.id, email, password };
 }
 
@@ -22,7 +23,7 @@ export async function accessToken(email: string, password: string) {
   const client = createClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_SUPABASE_ANON_KEY!,
     { auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
-  if (error || !data.session) throw new Error("Could not sign in to local fixture account");
+  if (error || !data.session) throw fixtureError("Could not sign in to local fixture account", error);
   return data.session.access_token;
 }
 
@@ -33,12 +34,12 @@ export async function createEvent(admin: SupabaseClient, ownerId: string, capaci
     time_zone: timeZone, registration_closes_at: new Date(now + 3600_000).toISOString(),
     entry_opens_at: new Date(now - 3600_000).toISOString(), entry_closes_at: new Date(now + 7200_000).toISOString() })
     .select("id,title,public_code").single();
-  if (error || !event) throw new Error(`Could not create fixture Event: ${error?.code}`);
+  if (error || !event) throw fixtureError("Could not create fixture Event", error);
   const { data: type, error: typeError } = await admin.from("ticket_types")
     .insert({ event_id: event.id, name: "General", max_capacity: capacity }).select("id").single();
-  if (typeError || !type) throw new Error("Could not create fixture TicketType");
+  if (typeError || !type) throw fixtureError("Could not create fixture TicketType", typeError);
   const { error: publishError } = await admin.from("events").update({ status: "published" }).eq("id", event.id);
-  if (publishError) throw new Error("Could not publish fixture Event");
+  if (publishError) throw fixtureError("Could not publish fixture Event", publishError);
   return { id: event.id as string, publicCode: event.public_code as string, title: event.title as string, ticketTypeId: type.id as string };
 }
 

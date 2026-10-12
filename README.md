@@ -123,6 +123,7 @@ de cámara simulado con el QR de la entrada para probar el lector de `/scan`.
 
 ```bash
 supabase start
+supabase migration up --local
 npx playwright install chromium
 npm run test:e2e
 ```
@@ -132,6 +133,13 @@ Si Supabase ya corre fuera del CLI, establece `E2E_SUPABASE_URL`,
 `E2E_SUPABASE_ANON_KEY` y `E2E_SUPABASE_SERVICE_ROLE_KEY` antes de ejecutar
 la prueba. Solo se acepta una URL local para evitar crear datos de prueba en
 un proyecto remoto.
+
+Antes de abrir Playwright, el ejecutor comprueba mediante consultas de solo lectura
+que las tablas y columnas requeridas estén disponibles. Si falla esta comprobación,
+revisa las credenciales y ejecuta `supabase migration list --local` y
+`supabase migration up --local` en el proyecto local al que apuntan las pruebas.
+Iniciar Supabase no actualiza una base existente automáticamente. No hace falta
+reiniciar ni borrar los datos para aplicar las migraciones pendientes.
 
 ## Correcciones constitucionales
 
