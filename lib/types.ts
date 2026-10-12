@@ -1,3 +1,5 @@
+import type { EventCoverProjection } from "./event-cover-types";
+
 export type EventStatus = "draft" | "published";
 
 export type Event = {
@@ -21,12 +23,13 @@ export type EventListing = Pick<
   "id" | "title" | "description" | "event_date" | "venue" | "status" | "max_capacity" | "time_zone" | "registration_closes_at" | "public_code"
 > & {
   remaining_capacity: number;
+  cover: EventCoverProjection | null;
 };
 
 export type RegistrationEvent = Pick<
   Event,
   "id" | "title" | "description" | "event_date" | "venue" | "time_zone" | "registration_closes_at"
->;
+> & { cover: EventCoverProjection | null };
 
 export type TicketType = {
   id: string;

@@ -1,0 +1,8 @@
+{
+  "decodeConcurrency": 1,
+  "decodeTimeoutMs": 30000,
+  "storageRequestTimeoutMs": 30000,
+  "processingTimeoutMs": 120000,
+  "processingLeaseMs": 180000,
+  "cleanupTransferMarginMs": 300000
+}

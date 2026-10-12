@@ -17,7 +17,8 @@
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "resend": "^6.25.0"
+    "resend": "^6.25.0",
+    "sharp": "0.35.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -30,5 +31,8 @@
     "eslint-config-next": "16.3.3",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
