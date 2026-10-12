@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import QRCode from "qrcode";
-import { cleanupOrganizer } from "./constitutional-fixtures";
+import { accessToken, cleanupOrganizer } from "./constitutional-fixtures";
+import { coverFixture, generateCoverFixtures } from "./event-cover-fixtures";
 
 type CapturedEmail = {
   to: string[];
@@ -23,7 +24,9 @@ function localEventDate() {
   return `${value.year}-${value.month}-${value.day}T23:59`;
 }
 
-test("publish, register, receive a ticket, and check in", async ({ page, request }) => {
+test.beforeAll(generateCoverFixtures);
+
+for (const coverState of ["absent", "delayed", "failed"] as const) test(`publish, register, receive a ticket, and check in — cover ${coverState}`, async ({ page, request }) => {
   const supabase = createClient(
     process.env.E2E_SUPABASE_URL!,
     process.env.E2E_SUPABASE_SERVICE_ROLE_KEY!,
@@ -81,13 +84,33 @@ test("publish, register, receive a ticket, and check in", async ({ page, request
     const { data: eventRow } = await supabase.from("events").select("id").eq("public_code", publicCode).single();
     const eventId = eventRow!.id;
 
-    await page.goto(registrationUrl!);
+    let releaseCover: (() => void) | undefined;
+    if (coverState !== "absent") {
+      const token = await accessToken(organizerEmail, password);
+      const headers = { Authorization: `Bearer ${token}` };
+      const bytes = await coverFixture("minimum.png");
+      const base = `/api/eventos/${eventId}/portada`;
+      const preparation = await request.post(`${base}/subidas`, { headers, data: { expectedRevision: "0", byteSize: bytes.length } });
+      expect(preparation.status()).toBe(201);
+      const prepared = await preparation.json();
+      expect((await supabase.storage.from(prepared.upload.bucket).uploadToSignedUrl(prepared.upload.path, prepared.upload.token, bytes, { contentType: "application/octet-stream" })).error).toBeNull();
+      expect((await request.post(`${base}/confirmar`, { headers, data: { operationId: prepared.operationId, expectedRevision: "0" } })).status()).toBe(200);
+      if (coverState === "failed") {
+        await page.route("**/_next/image?*", (route) => route.abort());
+        await page.route("**/storage/v1/object/public/event-covers/**", (route) => route.abort());
+      } else {
+        const released = new Promise<void>((resolve) => { releaseCover = resolve; });
+        await page.route("**/_next/image?*", async (route) => { await released; await route.continue(); });
+      }
+    }
+    await page.goto(registrationUrl!, { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: eventTitle })).toBeVisible();
     await page.getByRole("radio", { name: /General/ }).check();
     await page.getByLabel("Nombre completo").fill(attendeeName);
     await page.getByLabel("Email").fill(attendeeEmail);
     await page.getByRole("button", { name: "Enviar enlace de confirmación" }).click();
     await expect(page.getByRole("heading", { name: "Revisa tu email" })).toBeVisible();
+    releaseCover?.();
     await expect(page.getByRole("status")).toContainText(attendeeEmail);
 
     await expect.poll(async () => {

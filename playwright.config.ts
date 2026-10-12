@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = 3100;
+const coverFaultProxy = process.env.E2E_COVER_FAULT_PROXY === "1";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -16,6 +17,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: [
+    ...(coverFaultProxy ? [{ command: "node tests/e2e/event-cover-fault-proxy.mjs", url: "http://127.0.0.1:3102/health", reuseExistingServer: false, timeout: 10_000 }] : []),
     {
       command: "node tests/e2e/resend-server.mjs",
       url: "http://127.0.0.1:3101/health",
@@ -28,7 +30,7 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       env: {
-        NEXT_PUBLIC_SUPABASE_URL: process.env.E2E_SUPABASE_URL ?? "",
+        NEXT_PUBLIC_SUPABASE_URL: coverFaultProxy ? "http://127.0.0.1:3102" : process.env.E2E_SUPABASE_URL ?? "",
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.E2E_SUPABASE_ANON_KEY ?? "",
         RESEND_API_KEY: "e2e-resend-key",
         RESEND_FROM_EMAIL: "Door List <tickets@example.test>",
